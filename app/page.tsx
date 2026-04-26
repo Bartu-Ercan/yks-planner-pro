@@ -106,17 +106,38 @@ const haftaBaslangici = (offset = 0) => {
   return mon
 }
 
+const tarihId = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+
+const gunBaslangici = (offset = 0) => {
+  const start = haftaBaslangici(0)
+  start.setDate(start.getDate() + offset)
+  return start
+}
+
+const haftaIdFromDate = (date: Date) => {
+  const day = date.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const mon = new Date(date)
+  mon.setDate(date.getDate() + diff)
+  mon.setHours(0, 0, 0, 0)
+  return tarihId(mon)
+}
+
+const gunIndexFromDate = (date: Date) => date.getDay() === 0 ? 6 : date.getDay() - 1
+
+const getGunBilgisi = (offset: number, column: number) => {
+  const tarih = gunBaslangici(offset)
+  tarih.setDate(tarih.getDate() + column)
+  const gun = gunIndexFromDate(tarih)
+  return { tarih, gun, hafta: haftaIdFromDate(tarih), label: GUNLER[gun] }
+}
+
 const formatHafta = (offset: number) => {
-  const start = haftaBaslangici(offset)
+  const start = gunBaslangici(offset)
   const end = new Date(start)
   end.setDate(start.getDate() + 6)
   const fmt = (d: Date) => `${d.getDate()} ${d.toLocaleString('tr', { month: 'short' })}`
   return `${fmt(start)} – ${fmt(end)}`
-}
-
-const haftaId = (offset: number) => {
-  const d = haftaBaslangici(offset)
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
 const formatSure = (dakika: number) => {
@@ -128,9 +149,11 @@ const formatSure = (dakika: number) => {
   return `${dk}dk`
 }
 
+const createGuestId = () => Date.now().toString()
+
 export default function Home() {
   const [gorevler, setGorevler] = useState<Gorev[]>([])
-  const [haftaOffset, setHaftaOffset] = useState(0)
+  const [gunOffset, setGunOffset] = useState(0)
   const [ekleGun, setEkleGun] = useState<number | null>(null)
   const [formKonu, setFormKonu] = useState('')
   const [formDers, setFormDers] = useState('TYT Mat')
@@ -166,7 +189,48 @@ export default function Home() {
   const [dragSuccess, setDragSuccess] = useState<string | null>(null)
 
   const tema = TEMALAR[aktifTema]
-  const bugun = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1
+  const gorunenGunler = Array.from({ length: 7 }, (_, i) => getGunBilgisi(gunOffset, i))
+  const gorunenHaftalar = Array.from(new Set(gorunenGunler.map(g => g.hafta)))
+
+  useEffect(() => {
+    localStorage.setItem('yks-tema', aktifTema)
+  }, [aktifTema])
+
+  async function loadGorevler(currentUser: User | null) {
+    if (!currentUser) {
+      const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
+      setGorevler(local.filter((g: Gorev) => gorunenHaftalar.includes(g.hafta)))
+      setLoading(false)
+      return
+    }
+
+    const { data } = await supabase
+      .from('gorevler')
+      .select('*')
+      .in('hafta', gorunenHaftalar)
+      .order('created_at')
+
+    if (data) setGorevler(data as Gorev[])
+    setLoading(false)
+  }
+
+  async function migrateGuestTasks(currentUser: User) {
+    const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
+    if (local.length === 0 || guestMigrate) return
+
+    setGuestMigrate(true)
+    const toMigrate = local.map((g: Gorev) => ({
+      ...g,
+      user_id: currentUser.id,
+      id: undefined // Let Supabase generate new IDs
+    }))
+
+    if (toMigrate.length > 0) {
+      await supabase.from('gorevler').insert(toMigrate)
+      localStorage.removeItem('yks-gorevler')
+      loadGorevler(currentUser)
+    }
+  }
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -195,47 +259,7 @@ export default function Home() {
       window.removeEventListener('resize', checkMobile)
       subscription.unsubscribe()
     }
-  }, [haftaOffset])
-
-  useEffect(() => {
-    localStorage.setItem('yks-tema', aktifTema)
-  }, [aktifTema])
-
-  const loadGorevler = async (currentUser: User | null) => {
-    if (!currentUser) {
-      const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
-      setGorevler(local.filter((g: Gorev) => g.hafta === haftaId(haftaOffset)))
-      setLoading(false)
-      return
-    }
-
-    const { data } = await supabase
-      .from('gorevler')
-      .select('*')
-      .eq('hafta', haftaId(haftaOffset))
-      .order('created_at')
-
-    if (data) setGorevler(data as Gorev[])
-    setLoading(false)
-  }
-
-  const migrateGuestTasks = async (currentUser: User) => {
-    const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
-    if (local.length === 0 || guestMigrate) return
-
-    setGuestMigrate(true)
-    const toMigrate = local.map((g: Gorev) => ({
-      ...g,
-      user_id: currentUser.id,
-      id: undefined // Let Supabase generate new IDs
-    }))
-
-    if (toMigrate.length > 0) {
-      await supabase.from('gorevler').insert(toMigrate)
-      localStorage.removeItem('yks-gorevler')
-      loadGorevler(currentUser)
-    }
-  }
+  }, [gunOffset])
 
   const handleAuth = async () => {
     setAuthLoading(true)
@@ -275,25 +299,26 @@ export default function Home() {
 
   const saveGuest = (newGorevler: Gorev[]) => {
     const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
-    const otherWeeks = local.filter((g: Gorev) => g.hafta !== haftaId(haftaOffset))
+    const otherWeeks = local.filter((g: Gorev) => !gorunenHaftalar.includes(g.hafta))
     localStorage.setItem('yks-gorevler', JSON.stringify([...otherWeeks, ...newGorevler]))
   }
 
   const ekle = async () => {
     if (!formKonu.trim() || ekleGun === null) return
+    const hedefGun = gorunenGunler[ekleGun]
 
     const yeniGorev: Omit<Gorev, 'id' | 'created_at'> = {
       ders: formDers,
       konu: formKonu.trim(),
-      gun: ekleGun,
-      hafta: haftaId(haftaOffset),
+      gun: hedefGun.gun,
+      hafta: hedefGun.hafta,
       tamam: false,
       gercek_sure: 0,
       ...(user ? { user_id: user.id } : {})
     }
 
     if (!user) {
-      const yeni: Gorev = { ...yeniGorev, id: Date.now().toString(), created_at: new Date().toISOString() }
+      const yeni: Gorev = { ...yeniGorev, id: createGuestId(), created_at: new Date().toISOString() }
       const updated = [...gorevler, yeni]
       setGorevler(updated)
       saveGuest(updated)
@@ -314,51 +339,43 @@ export default function Home() {
   const topluEkle = async () => {
     if (!topluKonu.trim() || seciliGunler.length === 0) return
 
-    const haftalar = topluHaftalar === 'bu' ? [haftaOffset]
-      : topluHaftalar === 'sonraki' ? [haftaOffset, haftaOffset+1]
-      : Array.from({ length: 8 }, (_, i) => haftaOffset + i)
+    const tekrarSayisi = topluHaftalar === 'bu' ? 1 : topluHaftalar === 'sonraki' ? 2 : 8
+    const hedefGunler = Array.from({ length: tekrarSayisi }, (_, hafta) =>
+      seciliGunler.map(column => getGunBilgisi(gunOffset + column + hafta * 7, 0))
+    ).flat()
 
     if (!user) {
-      const yeniGorevler: Gorev[] = []
-      haftalar.forEach(h => {
-        seciliGunler.forEach(g => {
-          yeniGorevler.push({
-            id: `${Date.now()}-${h}-${g}`,
-            ders: topluDers,
-            konu: topluKonu.trim(),
-            gun: g,
-            hafta: haftaId(h),
-            tamam: false,
-            gercek_sure: 0,
-            created_at: new Date().toISOString()
-          })
-        })
-      })
-      const updated = [...gorevler, ...yeniGorevler]
+      const yeniGorevler: Gorev[] = hedefGunler.map((hedef, i) => ({
+        id: `${Date.now()}-${i}-${hedef.hafta}-${hedef.gun}`,
+        ders: topluDers,
+        konu: topluKonu.trim(),
+        gun: hedef.gun,
+        hafta: hedef.hafta,
+        tamam: false,
+        gercek_sure: 0,
+        created_at: new Date().toISOString()
+      }))
+      const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
+      localStorage.setItem('yks-gorevler', JSON.stringify([...local, ...yeniGorevler]))
+      const updated = [...gorevler, ...yeniGorevler.filter(g => gorunenHaftalar.includes(g.hafta))]
       setGorevler(updated)
-      saveGuest(updated)
     } else {
-      const toInsert = []
-      for (const h of haftalar) {
-        for (const g of seciliGunler) {
-          toInsert.push({
-            ders: topluDers,
-            konu: topluKonu.trim(),
-            gun: g,
-            hafta: haftaId(h),
-            tamam: false,
-            gercek_sure: 0,
-            user_id: user.id
-          })
-        }
-      }
+      const toInsert = hedefGunler.map(hedef => ({
+        ders: topluDers,
+        konu: topluKonu.trim(),
+        gun: hedef.gun,
+        hafta: hedef.hafta,
+        tamam: false,
+        gercek_sure: 0,
+        user_id: user.id
+      }))
       const { data, error } = await supabase.from('gorevler').insert(toInsert).select()
       if (error) {
         console.error('Toplu ekleme hatası:', error)
         alert('Görevler eklenemedi: ' + error.message)
         return
       }
-      if (data) setGorevler([...gorevler, ...(data as Gorev[])])
+      if (data) setGorevler([...gorevler, ...(data as Gorev[]).filter(g => gorunenHaftalar.includes(g.hafta))])
     }
 
     setTopluKonu('')
@@ -451,21 +468,22 @@ export default function Home() {
     setDragOverDay(gunIdx)
   }
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = () => {
     setDragOverDay(null)
   }
 
   const handleDrop = async (targetGun: number) => {
     if (!draggingTask) return
+    const hedefGun = gorunenGunler[targetGun]
     
     // If dropping on the same day, do nothing
-    if (draggingTask.gun === targetGun) {
+    if (draggingTask.gun === hedefGun.gun && draggingTask.hafta === hedefGun.hafta) {
       setDraggingTask(null)
       setDragOverDay(null)
       return
     }
 
-    const updatedTask = { ...draggingTask, gun: targetGun }
+    const updatedTask = { ...draggingTask, gun: hedefGun.gun, hafta: hedefGun.hafta }
 
     if (!user) {
       const updated = gorevler.map(g => g.id === draggingTask.id ? updatedTask : g)
@@ -474,7 +492,7 @@ export default function Home() {
     } else {
       const { error } = await supabase
         .from('gorevler')
-        .update({ gun: targetGun })
+        .update({ gun: hedefGun.gun, hafta: hedefGun.hafta })
         .eq('id', draggingTask.id)
       
       if (error) {
@@ -486,7 +504,7 @@ export default function Home() {
     }
 
     // Show success feedback
-    setDragSuccess(GUNLER[targetGun])
+    setDragSuccess(hedefGun.label)
     setTimeout(() => setDragSuccess(null), 1500)
 
     setDraggingTask(null)
@@ -501,12 +519,13 @@ export default function Home() {
     )
   }
 
-  const aktifGorevler = gorevler
+  const aktifGorevler = gorevler.filter(g => gorunenGunler.some(gun => gun.hafta === g.hafta && gun.gun === g.gun))
   const toplamTamam = aktifGorevler.filter(g => g.tamam).length
   const yuzde = aktifGorevler.length ? Math.round((toplamTamam / aktifGorevler.length) * 100) : 0
 
   const getGunToplamSure = (gunIdx: number) => {
-    const gunGorevler = aktifGorevler.filter(g => g.gun === gunIdx && g.tamam)
+    const hedefGun = gorunenGunler[gunIdx]
+    const gunGorevler = aktifGorevler.filter(g => g.hafta === hedefGun.hafta && g.gun === hedefGun.gun && g.tamam)
     return gunGorevler.reduce((toplam, g) => toplam + (g.gercek_sure || 0), 0)
   }
 
@@ -606,7 +625,7 @@ export default function Home() {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
               <div>
                 <p style={{ margin:0, fontSize:18, color:'#fff', fontWeight:600 }}>{authMode === 'login' ? 'Giriş Yap' : 'Kayıt Ol'}</p>
-                <p style={{ margin:'4px 0 0', fontSize:12, color:'#6b7280' }}>Görevlerin cloud'da kayıtlı kalsın</p>
+                <p style={{ margin:'4px 0 0', fontSize:12, color:'#6b7280' }}>Görevlerin cloud&apos;da kayıtlı kalsın</p>
               </div>
               <button onClick={() => { setAuthModal(false); setAuthError(''); }} className="btn-hover" style={{ background:tema.border, border:'none', color:'#9ca3af', cursor:'pointer', fontSize:18, width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
             </div>
@@ -702,16 +721,16 @@ export default function Home() {
             <button onClick={() => { setAuthModal(true); setAuthMode('login'); setAuthError(''); }} className="btn-hover" style={{ fontSize:10, padding:'5px 12px', background:tema.primary, border:'none', borderRadius:6, color:'#fff', cursor:'pointer', fontWeight:500 }}>giriş yap</button>
           )}
           <button onClick={() => setAyarlarAcik(true)} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:'#9ca3af', cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>⚙</button>
-          <button onClick={() => { setHaftaOffset(o => o-1); }} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:'#9ca3af', cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
+          <button onClick={() => { setGunOffset(o => o-1); }} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:'#9ca3af', cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
           <div style={{ textAlign:'center', minWidth:80 }}>
-            <p style={{ margin:0, fontSize:11, fontWeight:500, color: haftaOffset===0 ? tema.primary:'#6b7280' }}>
-              {haftaOffset===0 ? 'bu hafta' : haftaOffset>0 ? `+${haftaOffset} hafta` : `${haftaOffset} hafta`}
+            <p style={{ margin:0, fontSize:11, fontWeight:500, color: gunOffset===0 ? tema.primary:'#6b7280' }}>
+              {gunOffset===0 ? 'bu hafta' : gunOffset>0 ? `+${gunOffset} gün` : `${gunOffset} gün`}
             </p>
-            <p style={{ margin:'2px 0 0', fontSize:10, color:'#4b5563' }}>{formatHafta(haftaOffset)}</p>
+            <p style={{ margin:'2px 0 0', fontSize:10, color:'#4b5563' }}>{formatHafta(gunOffset)}</p>
           </div>
-          <button onClick={() => { setHaftaOffset(o => o+1); }} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:'#9ca3af', cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
-          {haftaOffset !== 0 && (
-            <button onClick={() => setHaftaOffset(0)} className="btn-hover" style={{ background:tema.primary, border:'none', borderRadius:6, color:'#fff', cursor:'pointer', fontSize:10, fontWeight:500, padding:'5px 10px' }}>bugün</button>
+          <button onClick={() => { setGunOffset(o => o+1); }} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:'#9ca3af', cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
+          {gunOffset !== 0 && (
+            <button onClick={() => setGunOffset(0)} className="btn-hover" style={{ background:tema.primary, border:'none', borderRadius:6, color:'#fff', cursor:'pointer', fontSize:10, fontWeight:500, padding:'5px 10px' }}>bugün</button>
           )}
         </div>
       </div>
@@ -749,8 +768,8 @@ export default function Home() {
           <div>
             <p style={{ margin:'0 0 10px', fontSize:12, color:'#6b7280', fontWeight:500 }}>Hangi günlere?</p>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-              {GUNLER.map((g,i) => (
-                <button key={i} onClick={() => toggleGun(i)} className="btn-hover" style={{ padding:'10px 14px', fontSize:12, borderRadius:8, cursor:'pointer', border: seciliGunler.includes(i)?`1px solid ${tema.primary}`:`1px solid ${tema.border}`, background: seciliGunler.includes(i)?tema.primary:'#030712', color: seciliGunler.includes(i)?'#fff':'#9ca3af', fontWeight: seciliGunler.includes(i) ? 500 : 400 }}>{g}</button>
+              {gorunenGunler.map((g,i) => (
+                <button key={i} onClick={() => toggleGun(i)} className="btn-hover" style={{ padding:'10px 14px', fontSize:12, borderRadius:8, cursor:'pointer', border: seciliGunler.includes(i)?`1px solid ${tema.primary}`:`1px solid ${tema.border}`, background: seciliGunler.includes(i)?tema.primary:'#030712', color: seciliGunler.includes(i)?'#fff':'#9ca3af', fontWeight: seciliGunler.includes(i) ? 500 : 400 }}>{g.label}</button>
               ))}
               <button onClick={() => setSeciliGunler([0,1,2,3,4,5,6])} className="btn-hover" style={{ padding:'10px 14px', fontSize:12, borderRadius:8, cursor:'pointer', border:`1px solid ${tema.border}`, background:'#030712', color:'#6b7280' }}>hepsi</button>
             </div>
@@ -774,10 +793,10 @@ export default function Home() {
 
       {/* 7 kolon grid */}
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(7, minmax(110px, 1fr))' : 'repeat(7, minmax(0, 1fr))', gap:8, alignItems:'start', overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? '8px' : 0 }}>
-        {GUNLER.map((gun,i) => {
-          const gunGorevler = aktifGorevler.filter(g => g.gun === i)
+        {gorunenGunler.map((gunBilgisi,i) => {
+          const gunGorevler = aktifGorevler.filter(g => g.hafta === gunBilgisi.hafta && g.gun === gunBilgisi.gun)
           const tamam = gunGorevler.filter(g => g.tamam).length
-          const isBugun = i === bugun && haftaOffset === 0
+          const isBugun = tarihId(gunBilgisi.tarih) === tarihId(new Date())
           const formAcik = ekleGun === i
           const gunToplamSure = getGunToplamSure(i)
           const isDragOver = dragOverDay === i
@@ -792,7 +811,7 @@ export default function Home() {
             >
               {/* Gün başlığı */}
               <div style={{ padding:'8px 6px', borderRadius:10, background: isBugun?`linear-gradient(135deg, ${tema.primary}, ${tema.primaryLight})`:tema.card, border: isBugun?'none':`1px solid ${tema.border}`, textAlign:'center', marginBottom:2 }}>
-                <p style={{ margin:0, fontSize:11, fontWeight:600, color: isBugun?'#fff':'#9ca3af', letterSpacing:0.5 }}>{gun}</p>
+                <p style={{ margin:0, fontSize:11, fontWeight:600, color: isBugun?'#fff':'#9ca3af', letterSpacing:0.5 }}>{gunBilgisi.label}</p>
                 {gunGorevler.length > 0 && (
                   <p style={{ margin:'3px 0 0', fontSize:10, color: isBugun?'#e0e7ff': tamam===gunGorevler.length?tema.primaryLight:'#374151', fontWeight: isBugun ? 500 : 400 }}>{tamam}/{gunGorevler.length}</p>
                 )}
