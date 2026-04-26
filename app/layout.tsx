@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'YKS Planner - Haftalık Program',
+  title: 'YKS Planner Pro - Haftalık Program',
   description: 'YKS çalışma programı planlayıcı',
 }
 
