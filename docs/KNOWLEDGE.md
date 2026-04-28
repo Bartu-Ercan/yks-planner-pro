@@ -15,7 +15,7 @@
 - RLS kullanıcı bazlıdır.
 - Misafir görevleri `localStorage` içinde saklanır.
 - Tema tercihi `localStorage` içinde `yks-tema` anahtarıyla saklanır; tema sistemi 6 dark ve 6 light seçenekten oluşur.
-- Font tercihi `yks-font`, arka plan modu `yks-bg-style` anahtarıyla saklanır.
+- Font tercihi `yks-font`, arka plan modu `yks-bg-style`, cursor tercihi `yks-cursor` anahtarıyla saklanır.
 - Fontlar `next/font` ile build sırasında self-host edilir.
 
 ## Planner Notları

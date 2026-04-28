@@ -241,6 +241,7 @@ Spacing:
 - Üst seviye sekmeler: `Tema Rengi` ve `Font`.
 - `Tema Rengi` içinde arka plan modu ve dark/light tema listesi yer alır.
 - `Font` içinde 6 font kartı ve canlı kısa preview yer alır.
+- `Cursor` içinde 4 seçenek yer alır: `Sade`, `Nokta`, `Halka`, `Sistem`.
 - Dark / Light segmented control kullanır.
 - Tema kartları seçili arka plan moduna göre önizleme verir; `border`, `16px` radius ve kompakt yoğunluğu korur.
 - Her tema üç swatch gösterir: `primary`, `primaryLight`, `accent`.
@@ -261,7 +262,8 @@ Animasyon az ve işlevsel olmalı.
 - Hover lift: `translateY(-1px)` veya `translateY(-2px)`.
 - Progress width transition: yaklaşık `0.5s`.
 - Drag kartı hafif opacity ve küçük rotate alabilir.
-- Custom cursor desktop'ta sade accent ring kullanır; mobile, touch cihazlar ve reduced-motion durumunda kapalıdır.
+- Custom cursor tercihi `yks-cursor` ile saklanır. Varsayılan `Sade` seçenektir; normal durumda halka göstermez, halka sadece hover/drag/copy gibi etkileşim anlarında belirginleşir.
+- Custom cursor mobile, touch cihazlar ve reduced-motion durumunda kapalıdır.
 - Drag/copy sırasında küçük ghost card ve hedef gün focus hissi kullanılabilir; büyük efekt, parıltı veya oyuncak görsel kullanılmaz.
 
 ## Responsive Rules
