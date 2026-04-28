@@ -241,7 +241,7 @@ Spacing:
 - Üst seviye sekmeler: `Tema Rengi` ve `Font`.
 - `Tema Rengi` içinde arka plan modu ve dark/light tema listesi yer alır.
 - `Font` içinde 6 font kartı ve canlı kısa preview yer alır.
-- `Cursor` içinde 4 seçenek yer alır: `Sade`, `Nokta`, `Halka`, `Sistem`.
+- `Cursor` içinde 6 seçenek yer alır: `Sade`, `Nokta`, `Yumuşak`, `Odak`, `Halka`, `Sistem`.
 - Dark / Light segmented control kullanır.
 - Tema kartları seçili arka plan moduna göre önizleme verir; `border`, `16px` radius ve kompakt yoğunluğu korur.
 - Her tema üç swatch gösterir: `primary`, `primaryLight`, `accent`.

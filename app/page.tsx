@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, type CSSProperties } from 'react'
+import { useState, useEffect, useCallback, type CSSProperties } from 'react'
 import {
   CalendarDays,
   Check,
@@ -42,7 +42,7 @@ type TemaMode = 'dark' | 'light'
 type AyarSekmesi = 'tema' | 'font' | 'cursor'
 type ArkaPlanStili = 'balanced' | 'atmospheric'
 type FontKey = 'dmMono' | 'geistMono' | 'jetBrainsMono' | 'ibmPlexMono' | 'spaceGrotesk' | 'manrope'
-type CursorKey = 'minimal' | 'dot' | 'ring' | 'system'
+type CursorKey = 'minimal' | 'dot' | 'soft' | 'focus' | 'ring' | 'system'
 
 interface Tema {
   name: string
@@ -130,6 +130,16 @@ const CURSORLAR: Record<CursorKey, CursorSecenegi> = {
     name: 'Nokta',
     tone: 'Sessiz',
     preview: 'Küçük accent odak'
+  },
+  soft: {
+    name: 'Yumuşak',
+    tone: 'Hafif',
+    preview: 'Sade glow hissi'
+  },
+  focus: {
+    name: 'Odak',
+    tone: 'Net',
+    preview: 'İnce hedef halkası'
   },
   ring: {
     name: 'Halka',
@@ -642,6 +652,12 @@ export default function Home() {
     }
   }
 
+  const updatePointerKonum = useCallback((x: number, y: number) => {
+    if (x === 0 && y === 0) return
+    setMouseKonum({ x, y })
+    setCursorHazir(true)
+  }, [])
+
   const getYarinIndex = () => {
     const yarin = new Date()
     yarin.setDate(yarin.getDate() + 1)
@@ -676,7 +692,7 @@ export default function Home() {
       setTercihlerYuklendi(true)
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [])
+  }, [updatePointerKonum])
 
   useEffect(() => {
     if (!tercihlerYuklendi) return
@@ -708,15 +724,16 @@ export default function Home() {
     motionQuery.addEventListener('change', updateCursorCapability)
 
     const handleMouseMove = (event: MouseEvent) => {
-      setMouseKonum({ x: event.clientX, y: event.clientY })
-      setCursorHazir(true)
+      updatePointerKonum(event.clientX, event.clientY)
       const target = event.target as HTMLElement | null
       setCursorInteractive(Boolean(target?.closest('button, a, input, select, textarea, [role="button"], .gorev-card')))
     }
 
+    const handleDragMove = (event: DragEvent) => updatePointerKonum(event.clientX, event.clientY)
     const handleMouseLeave = () => setCursorHazir(false)
 
     window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('dragover', handleDragMove)
     document.addEventListener('mouseleave', handleMouseLeave)
 
     return () => {
@@ -724,14 +741,16 @@ export default function Home() {
       pointerQuery.removeEventListener('change', updateCursorCapability)
       motionQuery.removeEventListener('change', updateCursorCapability)
       window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('dragover', handleDragMove)
       document.removeEventListener('mouseleave', handleMouseLeave)
     }
-  }, [])
+  }, [updatePointerKonum])
 
   useEffect(() => {
     if (!kopyaDrag) return
 
     const handleMouseMove = (event: MouseEvent) => {
+      updatePointerKonum(event.clientX, event.clientY)
       setKopyaKonum({ x: event.clientX, y: event.clientY })
     }
 
@@ -746,7 +765,7 @@ export default function Home() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [kopyaDrag])
+  }, [kopyaDrag, updatePointerKonum])
 
   async function loadGorevler(currentUser: User | null) {
     if (!currentUser) {
@@ -1082,13 +1101,23 @@ export default function Home() {
     setSeciliGunler(gs => gs.includes(i) ? gs.filter(x => x !== i) : [...gs, i])
   }
 
-  const handleDragStart = (gorev: Gorev) => {
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, gorev: Gorev) => {
     setKopyaDrag(null)
     setDraggingTask(gorev)
+    updatePointerKonum(e.clientX, e.clientY)
+    e.dataTransfer.effectAllowed = 'move'
+    const img = new Image()
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
+    e.dataTransfer.setDragImage(img, 0, 0)
+  }
+
+  const handleDragMove = (e: React.DragEvent<HTMLDivElement>) => {
+    updatePointerKonum(e.clientX, e.clientY)
   }
 
   const handleDragOver = (e: React.DragEvent, gunIdx: number) => {
     e.preventDefault()
+    updatePointerKonum(e.clientX, e.clientY)
     e.dataTransfer.dropEffect = 'move'
     setDragOverDay(gunIdx)
   }
@@ -1151,6 +1180,10 @@ export default function Home() {
   const toplamTamam = aktifGorevler.filter(g => g.tamam).length
   const yuzde = aktifGorevler.length ? Math.round((toplamTamam / aktifGorevler.length) * 100) : 0
   const bitmeyenSayisi = aktifGorevler.filter(g => !g.tamam).length
+  const kalanGorev = aktifGorevler.length - toplamTamam
+  const tamamlananSureler = aktifGorevler.filter(g => g.tamam && (g.gercek_sure || 0) > 0).map(g => g.gercek_sure || 0)
+  const toplamCalismaSure = tamamlananSureler.reduce((toplam, sure) => toplam + sure, 0)
+  const ortalamaSure = tamamlananSureler.length ? Math.round(toplamCalismaSure / tamamlananSureler.length) : 0
   const tasimaHedefGun = gorunenGunler[tasimaHedef]
   const tasinabilirSayisi = aktifGorevler.filter(g =>
     !g.tamam && tasimaHedefGun && !(g.hafta === tasimaHedefGun.hafta && g.gun === tasimaHedefGun.gun)
@@ -1178,6 +1211,10 @@ export default function Home() {
         .gorev-card { transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease, background 0.18s ease, opacity 0.18s ease; backdrop-filter: blur(8px); }
         .gorev-card:hover { transform: translateY(-2px); box-shadow: ${tema.hoverShadow}; border-color: ${tema.hoverBorder} !important; }
         .gorev-card.dragging { opacity: 0.5; transform: rotate(2deg) scale(0.98); cursor: grabbing; }
+        .task-action { transition: color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease; }
+        .task-action:hover { transform: translateY(-1px); }
+        .task-action-copy:hover { color: ${tema.primaryLight} !important; background: ${tema.primary}18 !important; box-shadow: inset 0 0 0 1px ${tema.primary}40; }
+        .task-action-delete:hover { color: #f87171 !important; background: rgba(239,68,68,0.14) !important; box-shadow: inset 0 0 0 1px rgba(248,113,113,0.34); }
         .day-column { transition: all 0.2s ease; }
         .day-column.drag-over { background: ${tema.primary}10; border-radius: 14px; outline: 1px solid ${tema.primary}30; outline-offset: 2px; }
         .progress-bar { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -1215,6 +1252,22 @@ export default function Home() {
           border-radius: 999px;
           background: ${tema.primaryLight};
           color: transparent;
+          filter: none;
+          box-shadow: 0 0 0 3px ${tema.primary}10;
+        }
+        .custom-cursor.cursor-soft {
+          color: ${tema.primaryLight};
+          filter: drop-shadow(0 0 8px ${tema.primary}88) drop-shadow(0 4px 10px rgba(0,0,0,0.28));
+        }
+        .custom-cursor.cursor-focus {
+          width: 18px;
+          height: 18px;
+          border: 1px solid ${tema.primaryLight};
+          border-radius: 999px;
+          color: transparent;
+          background: transparent;
+          box-shadow: inset 0 0 0 3px ${tema.primary}14;
+          filter: none;
         }
         .custom-cursor.cursor-ring {
           width: 24px;
@@ -1249,6 +1302,27 @@ export default function Home() {
           filter: none;
           animation: cursorPulse 1.2s ease-in-out infinite;
         }
+        .custom-cursor.cursor-dot.hover {
+          width: 14px;
+          height: 14px;
+          border: none;
+          background: ${tema.primaryLight};
+          box-shadow: 0 0 0 5px ${tema.primary}14;
+          color: transparent;
+        }
+        .custom-cursor.cursor-dot.copy, .custom-cursor.cursor-dot.drag, .custom-cursor.cursor-dot.target {
+          width: 18px;
+          height: 18px;
+          border: none;
+          background: ${tema.primary};
+          box-shadow: 0 0 0 6px ${tema.primary}16;
+          color: transparent;
+        }
+        .custom-cursor.cursor-focus.hover, .custom-cursor.cursor-focus.copy, .custom-cursor.cursor-focus.drag, .custom-cursor.cursor-focus.target {
+          width: 28px;
+          height: 28px;
+          color: transparent;
+        }
         @media (pointer: coarse), (prefers-reduced-motion: reduce) {
           .custom-cursor-root, .custom-cursor-root * { cursor: auto !important; }
           .custom-cursor { display:none; }
@@ -1262,7 +1336,9 @@ export default function Home() {
           style={{ left: mouseKonum.x, top: mouseKonum.y, opacity: kopyaDrag ? 0.78 : 1 }}
           aria-hidden="true"
         >
-          {aktifCursor === 'dot' && cursorMode === 'normal' ? null : cursorMode === 'target' ? (
+          {aktifCursor === 'dot' ? null : aktifCursor === 'focus' ? (
+            <div style={{ width:5, height:5, borderRadius:'50%', background:tema.primaryLight }} />
+          ) : cursorMode === 'target' ? (
             <div style={{ width:8, height:8, borderRadius:'50%', background:tema.primary }} />
           ) : (
             <MousePointer2 size={13} strokeWidth={2.2} />
@@ -1564,6 +1640,12 @@ export default function Home() {
                       <div style={{ height:38, borderRadius:10, background:tema.card, border:`1px solid ${tema.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
                         {key === 'dot' ? (
                           <span style={{ width:8, height:8, borderRadius:'50%', background:tema.primaryLight, display:'block' }} />
+                        ) : key === 'soft' ? (
+                          <MousePointer2 size={18} strokeWidth={2.2} color={tema.primaryLight} style={{ filter:`drop-shadow(0 0 7px ${tema.primary})` }} />
+                        ) : key === 'focus' ? (
+                          <span style={{ width:24, height:24, borderRadius:'50%', border:`1px solid ${tema.primaryLight}`, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
+                            <span style={{ width:5, height:5, borderRadius:'50%', background:tema.primaryLight }} />
+                          </span>
                         ) : key === 'ring' ? (
                           <span style={{ width:26, height:26, borderRadius:'50%', border:`1px solid ${tema.primaryLight}`, display:'inline-flex', alignItems:'center', justifyContent:'center', color:tema.primaryLight }}><MousePointer2 size={13} strokeWidth={2.2} /></span>
                         ) : key === 'system' ? (
@@ -1588,13 +1670,30 @@ export default function Home() {
       )}
 
       {/* Başlık + nav */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem', flexWrap:'wrap', gap:12 }}>
-        <div>
-          <p style={{ margin:0, fontSize:11, color:tema.faint, letterSpacing:2.5, textTransform:'uppercase' }}>2026 YKS</p>
-          <h1 style={{ margin:'4px 0 0', fontSize: isMobile ? 18 : 22, fontWeight:600, color:tema.textStrong, letterSpacing:'-0.5px' }}>Haftalık Program</h1>
+      <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(160px, 1fr) minmax(320px, auto) minmax(160px, 1fr)', alignItems:'start', marginBottom:'1rem', gap:12 }}>
+        <div style={{ minHeight: isMobile ? 0 : 34 }} />
+
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:12, order: isMobile ? 1 : 0 }}>
+          <div>
+            <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:1.8, textTransform:'uppercase', fontWeight:700 }}>2026 YKS</p>
+            <h1 style={{ margin:'4px 0 0', fontSize: isMobile ? 22 : 24, fontWeight:700, color:tema.textStrong, letterSpacing:0 }}>Haftalık Program</h1>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, flexWrap:'wrap' }}>
+            <button onClick={() => { setGunOffset(o => o-1); }} className="btn-hover icon-only" aria-label="önceki gün" title="önceki gün" style={iconButtonStyle}><ChevronLeft size={16} strokeWidth={2.2} /></button>
+            <div style={{ textAlign:'center', minWidth:118 }}>
+              <p style={{ margin:0, fontSize:13, fontWeight:700, color: gunOffset===0 ? tema.primary:tema.text }}>
+                {gunOffset===0 ? 'bu hafta' : gunOffset>0 ? `+${gunOffset} gün` : `${gunOffset} gün`}
+              </p>
+              <p style={{ margin:'4px 0 0', fontSize:11, color:tema.faint }}>{formatHafta(gunOffset)}</p>
+            </div>
+            <button onClick={() => { setGunOffset(o => o+1); }} className="btn-hover icon-only" aria-label="sonraki gün" title="sonraki gün" style={iconButtonStyle}><ChevronRight size={16} strokeWidth={2.2} /></button>
+            <div style={{ width:76, height:34, display:'flex', alignItems:'center', justifyContent:'flex-start' }}>
+              <button onClick={() => setGunOffset(0)} className="btn-hover" style={{ visibility: gunOffset !== 0 ? 'visible' : 'hidden', pointerEvents: gunOffset !== 0 ? 'auto' : 'none', background:tema.primary, border:'none', borderRadius:8, color:tema.onPrimary, cursor:'pointer', fontSize:10, fontWeight:700, padding:'0 10px', height:30, lineHeight:1, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:5, whiteSpace:'nowrap' }}><CalendarDays size={11} strokeWidth={2.1} /> bugün</button>
+            </div>
+          </div>
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, order: isMobile ? 0 : 0 }}>
           {user ? (
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <span style={{ fontSize:10, color:tema.faint }}>{user.email}</span>
@@ -1604,30 +1703,38 @@ export default function Home() {
             <button onClick={() => { setAuthModal(true); setAuthMode('login'); setAuthError(''); }} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.primary, border:'none', borderRadius:7, color:tema.onPrimary, cursor:'pointer', fontWeight:600 }}><LogIn size={12} strokeWidth={2.1} /> giriş yap</button>
           )}
           <button onClick={() => setAyarlarAcik(true)} className="btn-hover icon-only" aria-label="ayarlar" title="ayarlar" style={iconButtonStyle}><Settings size={15} strokeWidth={2.1} /></button>
-          <button onClick={() => { setGunOffset(o => o-1); }} className="btn-hover icon-only" aria-label="önceki gün" title="önceki gün" style={iconButtonStyle}><ChevronLeft size={16} strokeWidth={2.2} /></button>
-          <div style={{ textAlign:'center', minWidth:80 }}>
-            <p style={{ margin:0, fontSize:11, fontWeight:500, color: gunOffset===0 ? tema.primary:tema.faint }}>
-              {gunOffset===0 ? 'bu hafta' : gunOffset>0 ? `+${gunOffset} gün` : `${gunOffset} gün`}
-            </p>
-            <p style={{ margin:'2px 0 0', fontSize:10, color:tema.faint }}>{formatHafta(gunOffset)}</p>
-          </div>
-          <button onClick={() => { setGunOffset(o => o+1); }} className="btn-hover icon-only" aria-label="sonraki gün" title="sonraki gün" style={iconButtonStyle}><ChevronRight size={16} strokeWidth={2.2} /></button>
-          <div style={{ width:66, height:34, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
-            <button onClick={() => setGunOffset(0)} className="btn-hover" style={{ visibility: gunOffset !== 0 ? 'visible' : 'hidden', pointerEvents: gunOffset !== 0 ? 'auto' : 'none', background:tema.primary, border:'none', borderRadius:8, color:tema.onPrimary, cursor:'pointer', fontSize:10, fontWeight:600, padding:'0 10px', height:30, lineHeight:1, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:5, whiteSpace:'nowrap' }}><CalendarDays size={11} strokeWidth={2.1} /> bugün</button>
-          </div>
         </div>
       </div>
 
       {/* İlerleme */}
-      <div style={{ background:tema.card, borderRadius:14, padding:'13px 16px', marginBottom:'1rem', border:`1px solid ${tema.border}`, boxShadow: arkaPlanStili === 'balanced' ? 'none' : tema.hoverShadow }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
-          <span style={{ fontSize:11, color:tema.muted, fontWeight:600, display:'inline-flex', alignItems:'center', gap:7 }}><CheckCircle2 size={13} strokeWidth={2.1} /> Haftalık İlerleme</span>
-          <span style={{ fontSize:12, color:tema.primaryLight, fontWeight:600 }}>{yuzde}%</span>
+      <div style={{ background:tema.card, borderRadius:14, padding: isMobile ? '16px' : '18px 20px', marginBottom:'1rem', border:`1px solid ${tema.border}`, boxShadow: arkaPlanStili === 'balanced' ? 'none' : tema.hoverShadow, display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(260px, 1.05fr) minmax(420px, 1.6fr)', alignItems:'center', gap: isMobile ? 16 : 24 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+          <div style={{ width:72, height:72, borderRadius:'50%', background:`conic-gradient(${tema.primary} ${yuzde * 3.6}deg, ${tema.border} 0deg)`, display:'flex', alignItems:'center', justifyContent:'center', flex:'0 0 auto', boxShadow:`0 0 0 1px ${tema.border}` }}>
+            <div style={{ width:54, height:54, borderRadius:'50%', background:tema.card, display:'flex', alignItems:'center', justifyContent:'center', color:tema.textStrong, fontSize:15, fontWeight:800 }}>
+              {yuzde}%
+            </div>
+          </div>
+          <div style={{ minWidth:0, flex:1 }}>
+            <p style={{ margin:'0 0 5px', fontSize:13, color:tema.textStrong, fontWeight:700, display:'inline-flex', alignItems:'center', gap:7 }}><CheckCircle2 size={14} strokeWidth={2.1} /> Haftalık ilerleme</p>
+            <p style={{ margin:'0 0 10px', fontSize:12, color:tema.muted }}>{toplamTamam} / {aktifGorevler.length} görev tamamlandı</p>
+            <div style={{ width:'100%', maxWidth:340, height:5, background:tema.border, borderRadius:99, overflow:'hidden' }}>
+              <div className="progress-bar" style={{ height:'100%', width:`${yuzde}%`, background:`linear-gradient(90deg, ${tema.primary}, ${tema.accent})`, borderRadius:99 }} />
+            </div>
+          </div>
         </div>
-        <div style={{ flex:1, height:4, background:tema.border, borderRadius:99, overflow:'hidden' }}>
-          <div className="progress-bar" style={{ height:'100%', width:`${yuzde}%`, background:`linear-gradient(90deg, ${tema.primary}, ${tema.accent})`, borderRadius:99 }} />
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap:0, borderLeft: isMobile ? 'none' : `1px solid ${tema.border}` }}>
+          {[
+            ['Toplam Görev', aktifGorevler.length, tema.textStrong],
+            ['Tamamlanan', toplamTamam, tema.primaryLight],
+            ['Kalan', kalanGorev, '#f87171'],
+            ['Ortalama Süre', ortalamaSure ? formatSure(ortalamaSure) : '-', tema.textStrong],
+          ].map(([label, value, color], index) => (
+            <div key={label} style={{ padding: isMobile ? '10px 8px' : '4px 18px', borderLeft: !isMobile && index > 0 ? `1px solid ${tema.border}` : 'none', borderTop: isMobile && index > 1 ? `1px solid ${tema.border}` : 'none', textAlign:'center' }}>
+              <p style={{ margin:'0 0 8px', fontSize:10, color:tema.muted, fontWeight:600 }}>{label}</p>
+              <p style={{ margin:0, fontSize: isMobile ? 18 : 20, color:color as string, fontWeight:800 }}>{value}</p>
+            </div>
+          ))}
         </div>
-        <p style={{ margin:'4px 0 0', fontSize:10, color:tema.faint }}>{toplamTamam}/{aktifGorevler.length} görev tamamlandı</p>
       </div>
 
       {/* Hızlı aksiyonlar */}
@@ -1749,7 +1856,8 @@ export default function Home() {
                     key={g.id}
                     className={`gorev-card ${isDragging ? 'dragging' : ''}`}
                     draggable={!g.tamam}
-                    onDragStart={() => handleDragStart(g)}
+                    onDragStart={(e) => handleDragStart(e, g)}
+                    onDrag={handleDragMove}
                     onDragEnd={handleDragEnd}
                     style={{ padding:'10px 8px 9px', border:`1px solid ${tema.border}`, borderRadius:10, background: g.tamam ? tema.cardSoft : tema.card, opacity: g.tamam?0.5:(isDragging?0.5:1), position:'relative', overflow:'hidden', cursor: g.tamam ? 'default' : 'grab' }}
                   >
@@ -1763,8 +1871,8 @@ export default function Home() {
                           <button onClick={() => tickla(g)} className="btn-hover icon-only" title={g.tamam ? 'tamamlandı' : 'tamamla'} aria-label={g.tamam ? 'görev tamamlandı' : 'görevi tamamla'} style={{ width:19, height:19, borderRadius:6, border: g.tamam?'none':`2px solid ${tema.border}`, background: g.tamam?renk:'transparent', color:g.tamam?'#000':tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
                             {g.tamam && <Check size={11} strokeWidth={2.4} />}
                           </button>
-                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => kopyaBaslat(g, e)} draggable={false} className="btn-hover icon-only" title="çoğalt" aria-label="görevi çoğalt" style={{ background:'none', border:'none', color:tema.faint, cursor:'copy', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Copy size={13} strokeWidth={2.1} /></button>
-                          <button onClick={() => sil(g.id)} className="btn-hover icon-only" title="sil" aria-label="görevi sil" style={{ background:'none', border:'none', color:tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Trash2 size={13} strokeWidth={2.1} /></button>
+                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => kopyaBaslat(g, e)} draggable={false} className="btn-hover icon-only task-action task-action-copy" title="çoğalt" aria-label="görevi çoğalt" style={{ width:20, height:20, borderRadius:6, background:'transparent', border:'none', color:tema.faint, cursor:'copy', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Copy size={13} strokeWidth={2.1} /></button>
+                          <button onClick={() => sil(g.id)} className="btn-hover icon-only task-action task-action-delete" title="sil" aria-label="görevi sil" style={{ width:20, height:20, borderRadius:6, background:'transparent', border:'none', color:tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Trash2 size={13} strokeWidth={2.1} /></button>
                         </div>
                       </div>
                     </div>
