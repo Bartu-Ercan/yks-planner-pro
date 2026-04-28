@@ -165,8 +165,12 @@ export default function Home() {
   const [sureModal, setSureModal] = useState<Gorev | null>(null)
   const [sureInput, setSureInput] = useState('')
   const [detayModal, setDetayModal] = useState<Gorev | null>(null)
+  const [kopyaDrag, setKopyaDrag] = useState<Gorev | null>(null)
+  const [kopyaKonum, setKopyaKonum] = useState({ x: 0, y: 0 })
   const [editKonu, setEditKonu] = useState('')
   const [editDers, setEditDers] = useState('')
+  const [bitmeyenAcik, setBitmeyenAcik] = useState(false)
+  const [tasimaHedef, setTasimaHedef] = useState(0)
   const [loading, setLoading] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [ayarlarAcik, setAyarlarAcik] = useState(false)
@@ -186,15 +190,63 @@ export default function Home() {
   })
   const [draggingTask, setDraggingTask] = useState<Gorev | null>(null)
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
-  const [dragSuccess, setDragSuccess] = useState<string | null>(null)
+  const [bildirim, setBildirim] = useState<string | null>(null)
 
   const tema = TEMALAR[aktifTema]
   const gorunenGunler = Array.from({ length: 7 }, (_, i) => getGunBilgisi(gunOffset, i))
   const gorunenHaftalar = Array.from(new Set(gorunenGunler.map(g => g.hafta)))
 
+  const bildir = (mesaj: string) => {
+    setBildirim(mesaj)
+    setTimeout(() => setBildirim(null), 1500)
+  }
+
+  const getYarinIndex = () => {
+    const yarin = new Date()
+    yarin.setDate(yarin.getDate() + 1)
+    const yarinId = tarihId(yarin)
+    return gorunenGunler.findIndex(g => tarihId(g.tarih) === yarinId)
+  }
+
+  const openBitmeyenPanel = () => {
+    const yarinIndex = getYarinIndex()
+    setTasimaHedef(yarinIndex >= 0 ? yarinIndex : 0)
+    setBitmeyenAcik(v => !v)
+    setTopluAcik(false)
+  }
+
+  const kopyaBaslat = (gorev: Gorev, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setKopyaDrag(gorev)
+    setKopyaKonum({ x: e.clientX, y: e.clientY })
+    setDraggingTask(null)
+    setDragOverDay(null)
+  }
+
   useEffect(() => {
     localStorage.setItem('yks-tema', aktifTema)
   }, [aktifTema])
+
+  useEffect(() => {
+    if (!kopyaDrag) return
+
+    const handleMouseMove = (event: MouseEvent) => {
+      setKopyaKonum({ x: event.clientX, y: event.clientY })
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setKopyaDrag(null)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [kopyaDrag])
 
   async function loadGorevler(currentUser: User | null) {
     if (!currentUser) {
@@ -383,6 +435,78 @@ export default function Home() {
     setTopluAcik(false)
   }
 
+  const gorevCogalt = async (hedefIndex: number) => {
+    if (!kopyaDrag) return
+    const hedefGun = gorunenGunler[hedefIndex]
+
+    const yeniGorev: Omit<Gorev, 'id' | 'created_at'> = {
+      ders: kopyaDrag.ders,
+      konu: kopyaDrag.konu,
+      gun: hedefGun.gun,
+      hafta: hedefGun.hafta,
+      tamam: false,
+      gercek_sure: 0,
+      ...(user ? { user_id: user.id } : {})
+    }
+
+    if (!user) {
+      const yeni: Gorev = { ...yeniGorev, id: createGuestId(), created_at: new Date().toISOString() }
+      const updated = [...gorevler, yeni]
+      setGorevler(updated)
+      saveGuest(updated)
+    } else {
+      const { data, error } = await supabase.from('gorevler').insert(yeniGorev).select().single()
+      if (error) {
+        console.error('Görev çoğaltma hatası:', error)
+        alert('Görev çoğaltılamadı: ' + error.message)
+        return
+      }
+      if (data) setGorevler([...gorevler, data as Gorev])
+    }
+
+    setKopyaDrag(null)
+    bildir(`Görev ${hedefGun.label} gününe kopyalandı`)
+  }
+
+  const bitmeyenleriTasi = async () => {
+    const hedefGun = gorunenGunler[tasimaHedef]
+    const tasinacaklar = gorevler.filter(g =>
+      !g.tamam &&
+      gorunenGunler.some(gun => gun.hafta === g.hafta && gun.gun === g.gun) &&
+      !(g.hafta === hedefGun.hafta && g.gun === hedefGun.gun)
+    )
+
+    if (tasinacaklar.length === 0) {
+      setBitmeyenAcik(false)
+      return
+    }
+
+    if (!user) {
+      const updated = gorevler.map(g =>
+        tasinacaklar.some(t => t.id === g.id) ? { ...g, gun: hedefGun.gun, hafta: hedefGun.hafta } : g
+      )
+      setGorevler(updated)
+      saveGuest(updated)
+    } else {
+      const { error } = await supabase
+        .from('gorevler')
+        .update({ gun: hedefGun.gun, hafta: hedefGun.hafta })
+        .in('id', tasinacaklar.map(g => g.id))
+
+      if (error) {
+        console.error('Bitmeyenleri taşıma hatası:', error)
+        alert('Görevler taşınamadı: ' + error.message)
+        return
+      }
+      setGorevler(gorevler.map(g =>
+        tasinacaklar.some(t => t.id === g.id) ? { ...g, gun: hedefGun.gun, hafta: hedefGun.hafta } : g
+      ))
+    }
+
+    setBitmeyenAcik(false)
+    bildir(`${tasinacaklar.length} görev ${hedefGun.label} gününe taşındı`)
+  }
+
   const tickla = async (gorev: Gorev) => {
     if (!gorev.tamam) {
       setSureModal(gorev)
@@ -459,6 +583,7 @@ export default function Home() {
   }
 
   const handleDragStart = (gorev: Gorev) => {
+    setKopyaDrag(null)
     setDraggingTask(gorev)
   }
 
@@ -503,10 +628,13 @@ export default function Home() {
       setGorevler(gorevler.map(g => g.id === draggingTask.id ? updatedTask : g))
     }
 
-    // Show success feedback
-    setDragSuccess(hedefGun.label)
-    setTimeout(() => setDragSuccess(null), 1500)
+    bildir(`Görev ${hedefGun.label} gününe taşındı`)
 
+    setDraggingTask(null)
+    setDragOverDay(null)
+  }
+
+  const handleDragEnd = () => {
     setDraggingTask(null)
     setDragOverDay(null)
   }
@@ -522,6 +650,11 @@ export default function Home() {
   const aktifGorevler = gorevler.filter(g => gorunenGunler.some(gun => gun.hafta === g.hafta && gun.gun === g.gun))
   const toplamTamam = aktifGorevler.filter(g => g.tamam).length
   const yuzde = aktifGorevler.length ? Math.round((toplamTamam / aktifGorevler.length) * 100) : 0
+  const bitmeyenSayisi = aktifGorevler.filter(g => !g.tamam).length
+  const tasimaHedefGun = gorunenGunler[tasimaHedef]
+  const tasinabilirSayisi = aktifGorevler.filter(g =>
+    !g.tamam && tasimaHedefGun && !(g.hafta === tasimaHedefGun.hafta && g.gun === tasimaHedefGun.gun)
+  ).length
 
   const getGunToplamSure = (gunIdx: number) => {
     const hedefGun = gorunenGunler[gunIdx]
@@ -729,9 +862,9 @@ export default function Home() {
             <p style={{ margin:'2px 0 0', fontSize:10, color:'#4b5563' }}>{formatHafta(gunOffset)}</p>
           </div>
           <button onClick={() => { setGunOffset(o => o+1); }} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:'#9ca3af', cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
-          {gunOffset !== 0 && (
-            <button onClick={() => setGunOffset(0)} className="btn-hover" style={{ background:tema.primary, border:'none', borderRadius:6, color:'#fff', cursor:'pointer', fontSize:10, fontWeight:500, padding:'5px 10px' }}>bugün</button>
-          )}
+          <div style={{ width:54, display:'flex', justifyContent:'flex-end' }}>
+            <button onClick={() => setGunOffset(0)} className="btn-hover" style={{ visibility: gunOffset !== 0 ? 'visible' : 'hidden', pointerEvents: gunOffset !== 0 ? 'auto' : 'none', background:tema.primary, border:'none', borderRadius:6, color:'#fff', cursor:'pointer', fontSize:10, fontWeight:500, padding:'5px 10px' }}>bugün</button>
+          </div>
         </div>
       </div>
 
@@ -747,12 +880,38 @@ export default function Home() {
         <p style={{ margin:'4px 0 0', fontSize:10, color:'#6b7280' }}>{toplamTamam}/{aktifGorevler.length} görev tamamlandı</p>
       </div>
 
-      {/* Toplu ekle butonu */}
-      <div style={{ marginBottom:'1rem' }}>
+      {/* Hızlı aksiyonlar */}
+      <div style={{ marginBottom:'1rem', display:'flex', gap:8, flexWrap:'wrap' }}>
         <button onClick={() => setTopluAcik(v => !v)} className="btn-hover" style={{ fontSize:11, padding:'8px 16px', background: topluAcik?tema.primary:tema.card, border:`1px solid ${topluAcik ? tema.primary : tema.border}`, borderRadius:8, color: topluAcik?'#fff':'#9ca3af', cursor:'pointer', letterSpacing:0.5, fontWeight:500 }}>
           {topluAcik ? '× kapat' : '⊕ toplu görev ekle'}
         </button>
+        <button onClick={openBitmeyenPanel} disabled={bitmeyenSayisi === 0} className="btn-hover" style={{ fontSize:11, padding:'8px 16px', background: bitmeyenAcik?tema.primary:tema.card, border:`1px solid ${bitmeyenAcik ? tema.primary : tema.border}`, borderRadius:8, color: bitmeyenAcik?'#fff':'#9ca3af', cursor: bitmeyenSayisi === 0 ? 'not-allowed' : 'pointer', opacity: bitmeyenSayisi === 0 ? 0.45 : 1, letterSpacing:0.5, fontWeight:500 }}>
+          {bitmeyenAcik ? '× kapat' : `bitmeyenleri taşı (${bitmeyenSayisi})`}
+        </button>
       </div>
+
+      {/* Bitmeyenleri taşı paneli */}
+      {bitmeyenAcik && (
+        <div className="slide-in" style={{ padding:'18px 20px', border:`1px solid ${tema.border}`, borderRadius:14, background:tema.card, marginBottom:'1rem', display:'flex', flexDirection:'column', gap:14 }}>
+          <p style={{ margin:0, fontSize:13, color:'#9ca3af', fontWeight:600, letterSpacing:1, textTransform:'uppercase' }}>Bitmeyenleri Taşı</p>
+          <p style={{ margin:0, fontSize:12, color:'#6b7280' }}>{tasinabilirSayisi} tamamlanmamış görev seçilen güne taşınacak.</p>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {gorunenGunler.map((g,i) => {
+              const selected = tasimaHedef === i
+              const yarin = getYarinIndex() === i
+              return (
+                <button key={i} onClick={() => setTasimaHedef(i)} className="btn-hover" style={{ padding:'10px 14px', fontSize:12, borderRadius:8, cursor:'pointer', border: selected?`1px solid ${tema.primary}`:`1px solid ${tema.border}`, background: selected?tema.primary:'#030712', color: selected?'#fff':'#9ca3af', fontWeight: selected ? 500 : 400 }}>{g.label}{yarin ? ' yarın' : ''}</button>
+              )
+            })}
+          </div>
+          <div style={{ display:'flex', gap:12, justifyContent:'flex-end' }}>
+            <button onClick={() => setBitmeyenAcik(false)} className="btn-hover" style={{ fontSize:13, padding:'12px 20px', background:'#030712', border:`1px solid ${tema.border}`, borderRadius:10, color:'#6b7280', cursor:'pointer' }}>iptal</button>
+            <button onClick={bitmeyenleriTasi} disabled={tasinabilirSayisi === 0} className="btn-hover" style={{ fontSize:13, padding:'12px 20px', background:tema.primary, border:'none', borderRadius:10, color:'#fff', fontWeight:600, cursor: tasinabilirSayisi === 0 ? 'not-allowed' : 'pointer', opacity: tasinabilirSayisi === 0 ? 0.55 : 1 }}>
+              taşı
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toplu ekleme paneli */}
       {topluAcik && (
@@ -803,11 +962,12 @@ export default function Home() {
           return (
             <div 
               key={i} 
-              className={`fade-in day-column ${isDragOver ? 'drag-over' : ''}`} 
+              className={`fade-in day-column ${isDragOver || kopyaDrag ? 'drag-over' : ''}`} 
+              onClick={() => { if (kopyaDrag) gorevCogalt(i) }}
               onDragOver={(e) => handleDragOver(e, i)}
               onDragLeave={handleDragLeave}
               onDrop={() => handleDrop(i)}
-              style={{ display:'flex', flexDirection:'column', gap:6, animationDelay:`${i * 0.05}s`, animationFillMode:'both', minWidth: isMobile ? '120px' : 'auto', padding: isDragOver ? '8px 4px' : '0' }}
+              style={{ display:'flex', flexDirection:'column', gap:6, animationDelay:`${i * 0.05}s`, animationFillMode:'both', minWidth: isMobile ? '120px' : 'auto', padding: isDragOver || kopyaDrag ? '8px 4px' : '0', cursor: kopyaDrag ? 'copy' : 'default' }}
             >
               {/* Gün başlığı */}
               <div style={{ padding:'8px 6px', borderRadius:10, background: isBugun?`linear-gradient(135deg, ${tema.primary}, ${tema.primaryLight})`:tema.card, border: isBugun?'none':`1px solid ${tema.border}`, textAlign:'center', marginBottom:2 }}>
@@ -835,6 +995,7 @@ export default function Home() {
                     className={`gorev-card ${isDragging ? 'dragging' : ''}`}
                     draggable={!g.tamam}
                     onDragStart={() => handleDragStart(g)}
+                    onDragEnd={handleDragEnd}
                     style={{ padding:'10px 8px 9px', border:`1px solid ${tema.border}`, borderRadius:10, background: g.tamam ? '#030712' : tema.card, opacity: g.tamam?0.5:(isDragging?0.5:1), position:'relative', overflow:'hidden', cursor: g.tamam ? 'default' : 'grab' }}
                   >
                     <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:renk, borderRadius:'3px 0 0 3px' }} />
@@ -847,6 +1008,7 @@ export default function Home() {
                           <button onClick={() => tickla(g)} className="btn-hover" style={{ width:18, height:18, borderRadius:5, border: g.tamam?'none':`2px solid ${tema.border}`, background: g.tamam?renk:'transparent', cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
                             {g.tamam && <svg width="10" height="8" viewBox="0 0 10 7"><path d="M1.5 3.5L3.5 5.5L8.5 1.5" stroke="#000" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>}
                           </button>
+                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => kopyaBaslat(g, e)} draggable={false} className="btn-hover" title="çoğalt" aria-label="görevi çoğalt" style={{ background:'none', border:'none', color:'#4b5563', cursor:'copy', fontSize:13, lineHeight:1, padding:0, display:'flex', alignItems:'center', fontWeight:500 }}>⧉</button>
                           <button onClick={() => sil(g.id)} className="btn-hover" style={{ background:'none', border:'none', color:'#4b5563', cursor:'pointer', fontSize:16, lineHeight:1, padding:0, display:'flex', alignItems:'center', fontWeight:300 }}>×</button>
                         </div>
                       </div>
@@ -876,10 +1038,25 @@ export default function Home() {
         })}
       </div>
 
-      {/* Drag Success Notification */}
-      {dragSuccess && (
+      {/* İşlem bildirimi */}
+      {kopyaDrag && (
+        <>
+          <div style={{ position:'fixed', top:16, left:'50%', transform:'translateX(-50%)', zIndex:3000, background:'#030712', border:`1px solid ${tema.border}`, color:'#9ca3af', padding:'8px 14px', borderRadius:10, fontSize:11, boxShadow:'0 8px 24px rgba(0,0,0,0.35)', pointerEvents:'none' }}>
+            Kopyalamak için hedef güne tıkla · esc iptal
+          </div>
+          <div style={{ position:'fixed', left:kopyaKonum.x + 14, top:kopyaKonum.y + 14, zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:'0 12px 32px rgba(0,0,0,0.45)', pointerEvents:'none', opacity:0.92 }}>
+            <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:DERS_RENKLERI[kopyaDrag.ders] || '#888', borderRadius:'3px 0 0 3px' }} />
+            <div style={{ paddingLeft:10 }}>
+              <p style={{ margin:'0 0 2px', fontSize:10, color:DERS_RENKLERI[kopyaDrag.ders] || '#888', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{kopyaDrag.ders}</p>
+              <p style={{ margin:'0 0 6px', fontSize:11, color:'#d1d5db', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.4, fontWeight:500 }}>{kopyaDrag.konu}</p>
+              <span style={{ fontSize:10, color:'#6b7280', fontWeight:500 }}>kopya</span>
+            </div>
+          </div>
+        </>
+      )}
+      {bildirim && (
         <div className="slide-up" style={{ position:'fixed', bottom:30, left:'50%', transform:'translateX(-50%)', background:'#22c55e', color:'#000', padding:'12px 24px', borderRadius:12, boxShadow:'0 8px 24px rgba(34,197,94,0.3)', zIndex:3000, fontWeight:600, fontSize:14 }}>
-          ✓ Görev {dragSuccess} gününe taşındı
+          {bildirim}
         </div>
       )}
     </div>
