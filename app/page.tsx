@@ -963,7 +963,12 @@ export default function Home() {
             <div 
               key={i} 
               className={`fade-in day-column ${isDragOver || kopyaDrag ? 'drag-over' : ''}`} 
-              onClick={() => { if (kopyaDrag) gorevCogalt(i) }}
+              onClickCapture={(e) => {
+                if (!kopyaDrag) return
+                e.preventDefault()
+                e.stopPropagation()
+                gorevCogalt(i)
+              }}
               onDragOver={(e) => handleDragOver(e, i)}
               onDragLeave={handleDragLeave}
               onDrop={() => handleDrop(i)}
@@ -1031,7 +1036,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <button onClick={() => { setEkleGun(i); setFormKonu(''); }} className="btn-hover" style={{ width:'100%', padding:'14px 0', fontSize:20, cursor:'pointer', border:`2px dashed ${tema.border}`, borderRadius:12, background:'transparent', color:'#4b5563', fontWeight:300 }}>+</button>
+                <button onClick={() => { setEkleGun(i); setFormKonu(''); }} className="btn-hover" style={{ width:'100%', padding:'14px 0', fontSize:20, cursor: kopyaDrag ? 'copy' : 'pointer', border:`2px dashed ${tema.border}`, borderRadius:12, background:'transparent', color:'#4b5563', fontWeight:300 }}>+</button>
               )}
             </div>
           )
@@ -1044,7 +1049,7 @@ export default function Home() {
           <div style={{ position:'fixed', top:16, left:'50%', transform:'translateX(-50%)', zIndex:3000, background:'#030712', border:`1px solid ${tema.border}`, color:'#9ca3af', padding:'8px 14px', borderRadius:10, fontSize:11, boxShadow:'0 8px 24px rgba(0,0,0,0.35)', pointerEvents:'none' }}>
             Kopyalamak için hedef güne tıkla · esc iptal
           </div>
-          <div style={{ position:'fixed', left:kopyaKonum.x + 14, top:kopyaKonum.y + 14, zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:'0 12px 32px rgba(0,0,0,0.45)', pointerEvents:'none', opacity:0.92 }}>
+          <div style={{ position:'fixed', left:kopyaKonum.x, top:kopyaKonum.y, transform:'translate(-50%, -50%)', zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:'0 12px 32px rgba(0,0,0,0.45)', pointerEvents:'none', opacity:0.92 }}>
             <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:DERS_RENKLERI[kopyaDrag.ders] || '#888', borderRadius:'3px 0 0 3px' }} />
             <div style={{ paddingLeft:10 }}>
               <p style={{ margin:'0 0 2px', fontSize:10, color:DERS_RENKLERI[kopyaDrag.ders] || '#888', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{kopyaDrag.ders}</p>
