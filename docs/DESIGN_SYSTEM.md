@@ -60,6 +60,12 @@ Tema tokenları:
 | `success`, `successText` | Toast ve başarı durumu |
 | `overlay`, `shadow`, `hoverShadow` | Modal ve hover derinliği |
 
+Arka plan modları:
+
+- `Dengeli`: varsayılan moddur. Dark temalarda siyaha yakın, light temalarda nötr açık zemin kullanır; tema rengi sadece hafif tint verir.
+- `Atmosferik`: tema kartlarındaki daha renkli `bgGradient` değerlerini kullanır.
+- Arka plan modu globaldir; her tema için ayrı kart üretilmez.
+
 Mevcut tema seti:
 
 | Tema | Mode | Primary | Primary Light | Accent |
@@ -111,10 +117,11 @@ Yeni ders eklenirse önce bu tabloya renk atanır. Rastgele renk kullanılmaz.
 
 ## Typography
 
-Mevcut app mono hissi taşır.
+Mevcut app mono hissi taşır. Font seçimi `yks-font` ile saklanır ve `next/font` üzerinden self-host edilir.
 
-- Ana app fontu: `'DM Mono', monospace` hissi.
-- Global fallback: system sans olabilir, ama planner yüzeyi mono karakterini korur.
+- Varsayılan font: `DM Mono`.
+- Font seçenekleri: `DM Mono`, `Geist Mono`, `JetBrains Mono`, `IBM Plex Mono`, `Space Grotesk`, `Manrope`.
+- Mono seçenekler planner kimliğini korur; sans seçenekler daha modern/premium ama sade kalmalıdır.
 - Letter spacing negatif kullanılmaz; küçük uppercase etiketlerde pozitif spacing kullanılabilir.
 
 Ölçek:
@@ -229,8 +236,11 @@ Spacing:
 ### Theme Selector
 
 - Ayarlar modalı içinde kart grid.
+- Üst seviye sekmeler: `Tema Rengi` ve `Font`.
+- `Tema Rengi` içinde arka plan modu ve dark/light tema listesi yer alır.
+- `Font` içinde 6 font kartı ve canlı kısa preview yer alır.
 - Dark / Light segmented control kullanır.
-- Tema kartları kendi `bgGradient` önizlemesini, `border`, `16px` radius ve kompakt yoğunluğu korur.
+- Tema kartları seçili arka plan moduna göre önizleme verir; `border`, `16px` radius ve kompakt yoğunluğu korur.
 - Her tema üç swatch gösterir: `primary`, `primaryLight`, `accent`.
 - Aktif tema border ve küçük check ile belirtilir.
 
@@ -279,6 +289,7 @@ Yeni component gerekiyorsa:
 - Yeni radius sistemi ekleme.
 - Büyük dekoratif arka plan ekleme.
 - Uygulama genelinde aynı spacing ölçeğini sürdür.
+- Tasarım, ürün veya entegrasyon işi başlamadan önce iyi bir dış referans, plugin veya resmi doküman varsa değerlendirilir; kaliteyi artıracaksa kullanılmalıdır.
 
 ## Acceptance Checklist
 
@@ -289,6 +300,8 @@ Yeni frontend işi bitmeden şunlar kontrol edilir:
 - [ ] Uydurma ürün bölümü eklenmedi.
 - [ ] Tema tokenları doğru kullanıldı.
 - [ ] Dark ve light tema kontrastları okunabilir.
+- [ ] Font seçimi okunabilir ve localStorage'dan geri yükleniyor.
+- [ ] Arka plan modu dengeli/atmosferik olarak geri yükleniyor.
 - [ ] Mobile yatay board davranışı bozulmadı.
 - [ ] Task card yoğunluğu ve boyutu mevcut stile yakın.
 - [ ] Modal, button ve input stilleri mevcut sistemden türedi.

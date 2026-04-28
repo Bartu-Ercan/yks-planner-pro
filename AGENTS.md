@@ -21,6 +21,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Read the relevant source and docs before editing.
 - Keep documentation in Turkish unless the target file is already English-only.
 - Do not copy external kit scaffolds wholesale. Adapt useful patterns into this repo.
+- For design, product, integration, or visual-polish work, look for strong external references, plugins, or source-of-truth docs before implementing. Use them when they improve quality, and explain the choice.
 - For large features, create or update `docs/features/<id>/spec.md`, `plan.md`, and `tasks.md` before implementation.
 
 ## Next.js Rule

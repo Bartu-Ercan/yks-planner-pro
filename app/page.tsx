@@ -20,6 +20,9 @@ interface Gorev {
 }
 
 type TemaMode = 'dark' | 'light'
+type AyarSekmesi = 'tema' | 'font'
+type ArkaPlanStili = 'balanced' | 'atmospheric'
+type FontKey = 'dmMono' | 'geistMono' | 'jetBrainsMono' | 'ibmPlexMono' | 'spaceGrotesk' | 'manrope'
 
 interface Tema {
   name: string
@@ -43,6 +46,52 @@ interface Tema {
   overlay: string
   shadow: string
   hoverShadow: string
+}
+
+interface FontSecenegi {
+  name: string
+  tone: string
+  preview: string
+  family: string
+}
+
+const FONTLAR: Record<FontKey, FontSecenegi> = {
+  dmMono: {
+    name: 'DM Mono',
+    tone: 'Mevcut',
+    preview: 'Haftalık Program',
+    family: "var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+  },
+  geistMono: {
+    name: 'Geist Mono',
+    tone: 'Modern',
+    preview: 'Bugün 45dk',
+    family: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+  },
+  jetBrainsMono: {
+    name: 'JetBrains Mono',
+    tone: 'Teknik',
+    preview: 'TYT Mat 5 test',
+    family: "var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+  },
+  ibmPlexMono: {
+    name: 'IBM Plex Mono',
+    tone: 'Akademik',
+    preview: '27 Nis - 3 May',
+    family: "var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+  },
+  spaceGrotesk: {
+    name: 'Space Grotesk',
+    tone: 'Premium',
+    preview: 'Haftalık Program',
+    family: "var(--font-space-grotesk), Inter, ui-sans-serif, system-ui, sans-serif"
+  },
+  manrope: {
+    name: 'Manrope',
+    tone: 'Sakin',
+    preview: 'Plan hazır',
+    family: "var(--font-manrope), Inter, ui-sans-serif, system-ui, sans-serif"
+  },
 }
 
 const TEMALAR: Record<string, Tema> = {
@@ -325,6 +374,17 @@ const TEMALAR: Record<string, Tema> = {
 }
 
 const normalizeTemaKey = (key: string | null) => key && TEMALAR[key] ? key : 'mavi'
+const normalizeFontKey = (key: string | null): FontKey =>
+  key && key in FONTLAR ? (key as FontKey) : 'dmMono'
+const normalizeArkaPlanStili = (key: string | null): ArkaPlanStili =>
+  key === 'atmospheric' ? 'atmospheric' : 'balanced'
+const getTint = (hex: string, alpha: string) => `${hex}${alpha}`
+const getDengeliArkaPlan = (tema: Tema) => {
+  if (tema.mode === 'dark') {
+    return `linear-gradient(135deg, #05070d 0%, ${getTint(tema.primary, '14')} 52%, #070a12 100%)`
+  }
+  return `linear-gradient(135deg, #f8fafc 0%, ${getTint(tema.primary, '10')} 52%, #eef7f8 100%)`
+}
 
 const DERS_RENKLERI: Record<string, string> = {
   'TYT Mat':'#60a5fa','TYT Türkçe':'#a78bfa','TYT Fen':'#34d399','TYT Sosyal':'#fbbf24',
@@ -423,6 +483,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [ayarlarAcik, setAyarlarAcik] = useState(false)
+  const [ayarSekmesi, setAyarSekmesi] = useState<AyarSekmesi>('tema')
   const [authModal, setAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [authEmail, setAuthEmail] = useState('')
@@ -443,11 +504,25 @@ export default function Home() {
     }
     return 'dark'
   })
+  const [aktifFont, setAktifFont] = useState<FontKey>(() => {
+    if (typeof window !== 'undefined') {
+      return normalizeFontKey(localStorage.getItem('yks-font'))
+    }
+    return 'dmMono'
+  })
+  const [arkaPlanStili, setArkaPlanStili] = useState<ArkaPlanStili>(() => {
+    if (typeof window !== 'undefined') {
+      return normalizeArkaPlanStili(localStorage.getItem('yks-bg-style'))
+    }
+    return 'balanced'
+  })
   const [draggingTask, setDraggingTask] = useState<Gorev | null>(null)
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
   const [bildirim, setBildirim] = useState<string | null>(null)
 
   const tema = TEMALAR[aktifTema]
+  const font = FONTLAR[aktifFont]
+  const sayfaArkaPlani = arkaPlanStili === 'atmospheric' ? tema.bgGradient : getDengeliArkaPlan(tema)
   const gorunenGunler = Array.from({ length: 7 }, (_, i) => getGunBilgisi(gunOffset, i))
   const gorunenHaftalar = Array.from(new Set(gorunenGunler.map(g => g.hafta)))
   const seciliTemaListesi = Object.entries(TEMALAR).filter(([, t]) => t.mode === temaSekmesi)
@@ -484,6 +559,14 @@ export default function Home() {
     localStorage.setItem('yks-tema', aktifTema)
     setTemaSekmesi(TEMALAR[aktifTema].mode)
   }, [aktifTema])
+
+  useEffect(() => {
+    localStorage.setItem('yks-font', aktifFont)
+  }, [aktifFont])
+
+  useEffect(() => {
+    localStorage.setItem('yks-bg-style', arkaPlanStili)
+  }, [arkaPlanStili])
 
   useEffect(() => {
     if (!kopyaDrag) return
@@ -898,8 +981,8 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:tema.bg }}>
-        <p style={{ color:tema.faint, fontSize:12, fontFamily:"'DM Mono', monospace" }}>yükleniyor...</p>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:sayfaArkaPlani }}>
+        <p style={{ color:tema.faint, fontSize:12, fontFamily:font.family }}>yükleniyor...</p>
       </div>
     )
   }
@@ -920,7 +1003,7 @@ export default function Home() {
   }
 
   return (
-    <div style={{ background:tema.bgGradient, minHeight:'100vh', color:tema.text, fontFamily:"'DM Mono', monospace", padding: isMobile ? '1rem 0.5rem 3rem' : '1.5rem 1rem 3rem' }}>
+    <div style={{ background:sayfaArkaPlani, minHeight:'100vh', color:tema.text, fontFamily:font.family, padding: isMobile ? '1rem 0.5rem 3rem' : '1.5rem 1rem 3rem' }}>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
@@ -1059,12 +1142,15 @@ export default function Home() {
               <button onClick={() => setAyarlarAcik(false)} className="btn-hover" style={{ background:tema.cardSoft, border:'none', color:tema.muted, cursor:'pointer', fontSize:18, width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
-              {(['dark','light'] as TemaMode[]).map(mode => {
-                const active = temaSekmesi === mode
+              {[
+                ['tema', 'Tema Rengi'],
+                ['font', 'Font'],
+              ].map(([key, label]) => {
+                const active = ayarSekmesi === key
                 return (
                   <button
-                    key={mode}
-                    onClick={() => setTemaSekmesi(mode)}
+                    key={key}
+                    onClick={() => setAyarSekmesi(key as AyarSekmesi)}
                     className="btn-hover"
                     style={{
                       padding:'10px 0',
@@ -1075,46 +1161,138 @@ export default function Home() {
                       cursor:'pointer',
                       fontSize:12,
                       fontWeight:600,
-                      letterSpacing:0.4
+                      letterSpacing:0
                     }}
                   >
-                    {mode === 'dark' ? 'Dark' : 'Light'}
+                    {label}
                   </button>
                 )
               })}
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
-              {seciliTemaListesi.map(([key, t]) => (
-                <button
-                  key={key}
-                  onClick={() => setAktifTema(key)}
-                  className="btn-hover"
-                  style={{
-                    padding:'20px 16px',
-                    borderRadius:16,
-                    border: aktifTema === key ? `2px solid ${t.primary}` : `1px solid ${tema.border}`,
-                    background: t.bgGradient,
-                    cursor:'pointer',
-                    textAlign:'left',
-                    position:'relative',
-                    overflow:'hidden',
-                    transition:'all 0.2s'
-                  }}
-                >
-                  <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-                    <div style={{ width:24, height:24, borderRadius:6, background:t.primary, border:`1px solid ${t.border}` }} />
-                    <div style={{ width:24, height:24, borderRadius:6, background:t.primaryLight, border:`1px solid ${t.border}` }} />
-                    <div style={{ width:24, height:24, borderRadius:6, background:t.accent, border:`1px solid ${t.border}` }} />
-                  </div>
-                  <p style={{ margin:0, fontSize:14, color:t.textStrong, fontWeight:600 }}>{t.name}</p>
-                  {aktifTema === key && (
-                    <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:t.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <svg width="12" height="10" viewBox="0 0 10 7"><path d="M1.5 3.5L3.5 5.5L8.5 1.5" stroke={t.onPrimary} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+
+            {ayarSekmesi === 'tema' ? (
+              <>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
+                  {[
+                    ['balanced', 'Dengeli'],
+                    ['atmospheric', 'Atmosferik'],
+                  ].map(([key, label]) => {
+                    const active = arkaPlanStili === key
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setArkaPlanStili(key as ArkaPlanStili)}
+                        className="btn-hover"
+                        style={{
+                          padding:'10px 0',
+                          border:'none',
+                          borderRadius:8,
+                          background: active ? tema.primary : 'transparent',
+                          color: active ? tema.onPrimary : tema.muted,
+                          cursor:'pointer',
+                          fontSize:12,
+                          fontWeight:600,
+                          letterSpacing:0
+                        }}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
+                  {(['dark','light'] as TemaMode[]).map(mode => {
+                    const active = temaSekmesi === mode
+                    return (
+                      <button
+                        key={mode}
+                        onClick={() => setTemaSekmesi(mode)}
+                        className="btn-hover"
+                        style={{
+                          padding:'10px 0',
+                          border:'none',
+                          borderRadius:8,
+                          background: active ? tema.primary : 'transparent',
+                          color: active ? tema.onPrimary : tema.muted,
+                          cursor:'pointer',
+                          fontSize:12,
+                          fontWeight:600,
+                          letterSpacing:0
+                        }}
+                      >
+                        {mode === 'dark' ? 'Dark' : 'Light'}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
+                  {seciliTemaListesi.map(([key, t]) => (
+                    <button
+                      key={key}
+                      onClick={() => setAktifTema(key)}
+                      className="btn-hover"
+                      style={{
+                        padding:'20px 16px',
+                        borderRadius:16,
+                        border: aktifTema === key ? `2px solid ${t.primary}` : `1px solid ${tema.border}`,
+                        background: arkaPlanStili === 'atmospheric' ? t.bgGradient : getDengeliArkaPlan(t),
+                        cursor:'pointer',
+                        textAlign:'left',
+                        position:'relative',
+                        overflow:'hidden',
+                        transition:'all 0.2s'
+                      }}
+                    >
+                      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+                        <div style={{ width:24, height:24, borderRadius:6, background:t.primary, border:`1px solid ${t.border}` }} />
+                        <div style={{ width:24, height:24, borderRadius:6, background:t.primaryLight, border:`1px solid ${t.border}` }} />
+                        <div style={{ width:24, height:24, borderRadius:6, background:t.accent, border:`1px solid ${t.border}` }} />
+                      </div>
+                      <p style={{ margin:0, fontSize:14, color:t.textStrong, fontWeight:600 }}>{t.name}</p>
+                      {aktifTema === key && (
+                        <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:t.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <svg width="12" height="10" viewBox="0 0 10 7"><path d="M1.5 3.5L3.5 5.5L8.5 1.5" stroke={t.onPrimary} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
+                {Object.entries(FONTLAR).map(([key, f]) => (
+                  <button
+                    key={key}
+                    onClick={() => setAktifFont(key as FontKey)}
+                    className="btn-hover"
+                    style={{
+                      padding:'18px 16px',
+                      borderRadius:16,
+                      border: aktifFont === key ? `2px solid ${tema.primary}` : `1px solid ${tema.border}`,
+                      background:tema.cardSoft,
+                      color:tema.text,
+                      cursor:'pointer',
+                      textAlign:'left',
+                      position:'relative',
+                      transition:'all 0.2s',
+                      fontFamily:f.family
+                    }}
+                  >
+                    <p style={{ margin:0, fontSize:11, color:tema.primaryLight, fontWeight:600 }}>{f.tone}</p>
+                    <p style={{ margin:'8px 0 12px', fontSize:16, color:tema.textStrong, fontWeight:600 }}>{f.name}</p>
+                    <div style={{ padding:'10px 12px', borderRadius:10, background:tema.card, border:`1px solid ${tema.border}` }}>
+                      <p style={{ margin:0, fontSize:13, color:tema.text, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{f.preview}</p>
+                      <p style={{ margin:'5px 0 0', fontSize:10, color:tema.faint }}>TYT Mat · 45dk</p>
                     </div>
-                  )}
-                </button>
-              ))}
-            </div>
+                    {aktifFont === key && (
+                      <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:tema.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <svg width="12" height="10" viewBox="0 0 10 7"><path d="M1.5 3.5L3.5 5.5L8.5 1.5" stroke={tema.onPrimary} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

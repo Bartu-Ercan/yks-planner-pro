@@ -15,6 +15,8 @@
 - RLS kullanıcı bazlıdır.
 - Misafir görevleri `localStorage` içinde saklanır.
 - Tema tercihi `localStorage` içinde `yks-tema` anahtarıyla saklanır; tema sistemi 6 dark ve 6 light seçenekten oluşur.
+- Font tercihi `yks-font`, arka plan modu `yks-bg-style` anahtarıyla saklanır.
+- Fontlar `next/font` ile build sırasında self-host edilir.
 
 ## Planner Notları
 
@@ -36,3 +38,4 @@
 - Kararlar `docs/DECISIONS.md` içine kısa ve tarihsel bağlamla eklenir.
 - Tekrarlayan hata ve çözüm bilgileri bu dosyaya yazılır.
 - Yeni frontend ekranları ve componentleri `docs/DESIGN_SYSTEM.md` içindeki mevcut tasarım diliyle uyumlu olmalıdır.
+- Tasarım, ürün ve entegrasyon işlerinde kaliteli dış referans veya plugin varsa önce değerlendirilmeli ve uygun olan kullanılmalıdır.
