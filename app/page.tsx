@@ -378,13 +378,7 @@ const normalizeFontKey = (key: string | null): FontKey =>
   key && key in FONTLAR ? (key as FontKey) : 'dmMono'
 const normalizeArkaPlanStili = (key: string | null): ArkaPlanStili =>
   key === 'atmospheric' ? 'atmospheric' : 'balanced'
-const getTint = (hex: string, alpha: string) => `${hex}${alpha}`
-const getDengeliArkaPlan = (tema: Tema) => {
-  if (tema.mode === 'dark') {
-    return `linear-gradient(135deg, #05070d 0%, ${getTint(tema.primary, '14')} 52%, #070a12 100%)`
-  }
-  return `linear-gradient(135deg, #f8fafc 0%, ${getTint(tema.primary, '10')} 52%, #eef7f8 100%)`
-}
+const getDengeliArkaPlan = (tema: Tema) => tema.mode === 'dark' ? '#05070d' : '#f8fafc'
 
 const DERS_RENKLERI: Record<string, string> = {
   'TYT Mat':'#60a5fa','TYT Türkçe':'#a78bfa','TYT Fen':'#34d399','TYT Sosyal':'#fbbf24',
@@ -492,30 +486,11 @@ export default function Home() {
   const [authError, setAuthError] = useState('')
   const [user, setUser] = useState<User | null>(null)
   const [guestMigrate, setGuestMigrate] = useState(false)
-  const [aktifTema, setAktifTema] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return normalizeTemaKey(localStorage.getItem('yks-tema'))
-    }
-    return 'mavi'
-  })
-  const [temaSekmesi, setTemaSekmesi] = useState<TemaMode>(() => {
-    if (typeof window !== 'undefined') {
-      return TEMALAR[normalizeTemaKey(localStorage.getItem('yks-tema'))].mode
-    }
-    return 'dark'
-  })
-  const [aktifFont, setAktifFont] = useState<FontKey>(() => {
-    if (typeof window !== 'undefined') {
-      return normalizeFontKey(localStorage.getItem('yks-font'))
-    }
-    return 'dmMono'
-  })
-  const [arkaPlanStili, setArkaPlanStili] = useState<ArkaPlanStili>(() => {
-    if (typeof window !== 'undefined') {
-      return normalizeArkaPlanStili(localStorage.getItem('yks-bg-style'))
-    }
-    return 'balanced'
-  })
+  const [tercihlerYuklendi, setTercihlerYuklendi] = useState(false)
+  const [aktifTema, setAktifTema] = useState('mavi')
+  const [temaSekmesi, setTemaSekmesi] = useState<TemaMode>('dark')
+  const [aktifFont, setAktifFont] = useState<FontKey>('dmMono')
+  const [arkaPlanStili, setArkaPlanStili] = useState<ArkaPlanStili>('balanced')
   const [draggingTask, setDraggingTask] = useState<Gorev | null>(null)
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
   const [bildirim, setBildirim] = useState<string | null>(null)
@@ -556,17 +531,31 @@ export default function Home() {
   }
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const storedTema = normalizeTemaKey(localStorage.getItem('yks-tema'))
+      setAktifTema(storedTema)
+      setTemaSekmesi(TEMALAR[storedTema].mode)
+      setAktifFont(normalizeFontKey(localStorage.getItem('yks-font')))
+      setArkaPlanStili(normalizeArkaPlanStili(localStorage.getItem('yks-bg-style')))
+      setTercihlerYuklendi(true)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
+  useEffect(() => {
+    if (!tercihlerYuklendi) return
     localStorage.setItem('yks-tema', aktifTema)
-    setTemaSekmesi(TEMALAR[aktifTema].mode)
-  }, [aktifTema])
+  }, [aktifTema, tercihlerYuklendi])
 
   useEffect(() => {
+    if (!tercihlerYuklendi) return
     localStorage.setItem('yks-font', aktifFont)
-  }, [aktifFont])
+  }, [aktifFont, tercihlerYuklendi])
 
   useEffect(() => {
+    if (!tercihlerYuklendi) return
     localStorage.setItem('yks-bg-style', arkaPlanStili)
-  }, [arkaPlanStili])
+  }, [arkaPlanStili, tercihlerYuklendi])
 
   useEffect(() => {
     if (!kopyaDrag) return
