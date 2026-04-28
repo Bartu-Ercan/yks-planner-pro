@@ -62,7 +62,7 @@ Tema tokenları:
 
 Arka plan modları:
 
-- `Dengeli`: varsayılan moddur. Dark temalarda düz siyaha yakın, light temalarda düz nötr açık zemin kullanır; tema rengi sayfa arka planına tint vermez.
+- `Dengeli`: varsayılan moddur. Dark temalarda sayfa zemini, kartlar, gün kutuları ve panel yüzeyleri düz siyaha yakın nötr tonlar kullanır. Light temalarda aynı yüzeyler düz nötr açık tonlara çekilir. Tema rengi büyük yüzeylere tint vermez; sadece accent, aktif durum ve aksiyonlarda görünür.
 - `Atmosferik`: tema kartlarındaki daha renkli `bgGradient` değerlerini kullanır.
 - Arka plan modu globaldir; her tema için ayrı kart üretilmez.
 

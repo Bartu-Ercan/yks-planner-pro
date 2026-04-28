@@ -379,6 +379,33 @@ const normalizeFontKey = (key: string | null): FontKey =>
 const normalizeArkaPlanStili = (key: string | null): ArkaPlanStili =>
   key === 'atmospheric' ? 'atmospheric' : 'balanced'
 const getDengeliArkaPlan = (tema: Tema) => tema.mode === 'dark' ? '#05070d' : '#f8fafc'
+const getDengeliTema = (tema: Tema): Tema => {
+  if (tema.mode === 'dark') {
+    return {
+      ...tema,
+      bg: '#05070d',
+      card: '#0b1018',
+      cardSoft: '#111827',
+      border: '#1f2937',
+      hoverBorder: tema.primaryLight,
+      overlay: 'rgba(2,6,12,0.72)',
+      shadow: '0 20px 60px rgba(0,0,0,0.34)',
+      hoverShadow: '0 8px 24px rgba(0,0,0,0.26)',
+    }
+  }
+
+  return {
+    ...tema,
+    bg: '#f8fafc',
+    card: '#ffffff',
+    cardSoft: '#f1f5f9',
+    border: '#e2e8f0',
+    hoverBorder: tema.primaryLight,
+    overlay: 'rgba(15,23,42,0.36)',
+    shadow: '0 20px 60px rgba(15,23,42,0.14)',
+    hoverShadow: '0 8px 24px rgba(15,23,42,0.12)',
+  }
+}
 
 const DERS_RENKLERI: Record<string, string> = {
   'TYT Mat':'#60a5fa','TYT Türkçe':'#a78bfa','TYT Fen':'#34d399','TYT Sosyal':'#fbbf24',
@@ -495,9 +522,10 @@ export default function Home() {
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
   const [bildirim, setBildirim] = useState<string | null>(null)
 
-  const tema = TEMALAR[aktifTema]
+  const seciliTema = TEMALAR[aktifTema]
+  const tema = arkaPlanStili === 'balanced' ? getDengeliTema(seciliTema) : seciliTema
   const font = FONTLAR[aktifFont]
-  const sayfaArkaPlani = arkaPlanStili === 'atmospheric' ? tema.bgGradient : getDengeliArkaPlan(tema)
+  const sayfaArkaPlani = arkaPlanStili === 'atmospheric' ? seciliTema.bgGradient : getDengeliArkaPlan(seciliTema)
   const gorunenGunler = Array.from({ length: 7 }, (_, i) => getGunBilgisi(gunOffset, i))
   const gorunenHaftalar = Array.from(new Set(gorunenGunler.map(g => g.hafta)))
   const seciliTemaListesi = Object.entries(TEMALAR).filter(([, t]) => t.mode === temaSekmesi)
