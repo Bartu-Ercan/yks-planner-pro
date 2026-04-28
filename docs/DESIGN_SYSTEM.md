@@ -220,6 +220,8 @@ Spacing:
 - Primary: tema `primary`, `onPrimary` metin, `600` weight.
 - Secondary: `cardSoft` veya `card`, border, muted text.
 - Icon button: kare `32px`, `card`, border.
+- Ana aksiyonlarda ikon metni destekler; metin kaldırılmaz.
+- Dar task card aksiyonları icon-only olabilir; `title` ve `aria-label` zorunludur.
 - Text-only aksiyonlar sadece ikincil veya düşük riskli komutlarda.
 
 ### Modals
@@ -259,6 +261,8 @@ Animasyon az ve işlevsel olmalı.
 - Hover lift: `translateY(-1px)` veya `translateY(-2px)`.
 - Progress width transition: yaklaşık `0.5s`.
 - Drag kartı hafif opacity ve küçük rotate alabilir.
+- Custom cursor desktop'ta sade accent ring kullanır; mobile, touch cihazlar ve reduced-motion durumunda kapalıdır.
+- Drag/copy sırasında küçük ghost card ve hedef gün focus hissi kullanılabilir; büyük efekt, parıltı veya oyuncak görsel kullanılmaz.
 
 ## Responsive Rules
 
@@ -289,7 +293,7 @@ Yeni component gerekiyorsa:
 - Yeni radius sistemi ekleme.
 - Büyük dekoratif arka plan ekleme.
 - Uygulama genelinde aynı spacing ölçeğini sürdür.
-- Tasarım, ürün veya entegrasyon işi başlamadan önce iyi bir dış referans, plugin veya resmi doküman varsa değerlendirilir; kaliteyi artıracaksa kullanılmalıdır.
+- Tasarım, ürün, entegrasyon, visual polish veya karmaşık implementation işi başlamadan önce iyi bir dış referans, plugin, resmi doküman, uzmanlaşmış tool veya AI desteği kaliteyi artırır mı diye özellikle değerlendirilir; uygunsa kullanılır, ama mevcut tasarım diline uyarlanır.
 
 ## Acceptance Checklist
 
@@ -305,4 +309,6 @@ Yeni frontend işi bitmeden şunlar kontrol edilir:
 - [ ] Mobile yatay board davranışı bozulmadı.
 - [ ] Task card yoğunluğu ve boyutu mevcut stile yakın.
 - [ ] Modal, button ve input stilleri mevcut sistemden türedi.
+- [ ] İkonlar metinleri yok etmedi; dar icon-only aksiyonlarda erişilebilir etiket var.
+- [ ] Custom cursor desktop'ta sade çalışıyor, mobile/touch/reduced-motion durumunda kapalı.
 - [ ] `npm run lint` ve gerektiğinde `npm run build` çalıştı.

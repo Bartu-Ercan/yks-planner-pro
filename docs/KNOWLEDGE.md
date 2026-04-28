@@ -38,4 +38,4 @@
 - Kararlar `docs/DECISIONS.md` içine kısa ve tarihsel bağlamla eklenir.
 - Tekrarlayan hata ve çözüm bilgileri bu dosyaya yazılır.
 - Yeni frontend ekranları ve componentleri `docs/DESIGN_SYSTEM.md` içindeki mevcut tasarım diliyle uyumlu olmalıdır.
-- Tasarım, ürün ve entegrasyon işlerinde kaliteli dış referans veya plugin varsa önce değerlendirilmeli ve uygun olan kullanılmalıdır.
+- Tasarım, ürün, entegrasyon, visual polish ve karmaşık implementation işlerinde önce şu soru sorulur: "Bunu daha iyi yapmak için resmi doküman, iyi bir referans site, plugin, AI aracı veya uzmanlaşmış tool kullanmalı mıyız?" Uygunsa kullanılır, ama repo-native şekilde uyarlanır.

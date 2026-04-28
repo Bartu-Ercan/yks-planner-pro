@@ -42,3 +42,20 @@ Sonuç:
 
 - Local, preview ve production ortamlarında iki değer de tanımlı olmalıdır.
 - Build hatasında ilk kontrol bu env değerleridir.
+
+## 0004 - Sade premium visual polish
+
+Karar: Visual polish çalışmaları mevcut yedi günlük planner layout'unu koruyarak yapılacak; yeni sidebar, bottom nav, landing hero, analytics panel veya ekstra ana navigasyon eklenmeyecek.
+
+Neden:
+
+- Ürünün ana gücü sade ve hızlı günlük planlama deneyimidir.
+- Görsel kalite artarken karar yükü ve arayüz yoğunluğu artmamalıdır.
+- Dengeli modda büyük yüzeyler nötr siyah/açık kalmalı, tema rengi sadece accent, aktif durum, progress, focus ve görev aksiyonlarında görünmelidir.
+
+Sonuç:
+
+- Premium hissi spacing, border, shadow, hover, ikon dili ve custom cursor gibi düşük karar yükü yaratan detaylarla yükseltilir.
+- Ana aksiyonlarda Lucide ikon metni destekler; dar task aksiyonlarında icon-only kullanım varsa `title` ve `aria-label` zorunludur.
+- Custom cursor desktop ile sınırlıdır; touch cihazlarda ve reduced-motion durumunda kapalıdır.
+- Tasarım, ürün, entegrasyon ve visual polish işlerinde dış referans, resmi doküman, plugin, uzmanlaşmış tool veya AI desteği önce değerlendirilir.

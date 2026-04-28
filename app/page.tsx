@@ -1,6 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
+import {
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  ListPlus,
+  LogIn,
+  LogOut,
+  MousePointer2,
+  MoveRight,
+  Plus,
+  Save,
+  Settings,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
@@ -384,9 +403,9 @@ const getDengeliTema = (tema: Tema): Tema => {
     return {
       ...tema,
       bg: '#05070d',
-      card: '#0b1018',
-      cardSoft: '#111827',
-      border: '#1f2937',
+      card: '#080b10',
+      cardSoft: '#0d1117',
+      border: '#1a2230',
       hoverBorder: tema.primaryLight,
       overlay: 'rgba(2,6,12,0.72)',
       shadow: '0 20px 60px rgba(0,0,0,0.34)',
@@ -521,6 +540,10 @@ export default function Home() {
   const [draggingTask, setDraggingTask] = useState<Gorev | null>(null)
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
   const [bildirim, setBildirim] = useState<string | null>(null)
+  const [mouseKonum, setMouseKonum] = useState({ x: 0, y: 0 })
+  const [cursorHazir, setCursorHazir] = useState(false)
+  const [cursorInteractive, setCursorInteractive] = useState(false)
+  const [cursorKapali, setCursorKapali] = useState(false)
 
   const seciliTema = TEMALAR[aktifTema]
   const tema = arkaPlanStili === 'balanced' ? getDengeliTema(seciliTema) : seciliTema
@@ -529,6 +552,44 @@ export default function Home() {
   const gorunenGunler = Array.from({ length: 7 }, (_, i) => getGunBilgisi(gunOffset, i))
   const gorunenHaftalar = Array.from(new Set(gorunenGunler.map(g => g.hafta)))
   const seciliTemaListesi = Object.entries(TEMALAR).filter(([, t]) => t.mode === temaSekmesi)
+  const customCursorAktif = !isMobile && !cursorKapali
+  const cursorMode = kopyaDrag ? 'copy' : draggingTask ? 'drag' : dragOverDay !== null ? 'target' : cursorInteractive ? 'hover' : 'normal'
+  const iconProps = { size: 14, strokeWidth: 2.1 }
+  const iconButtonStyle: CSSProperties = {
+    background: tema.card,
+    border: `1px solid ${tema.border}`,
+    borderRadius: 9,
+    color: tema.muted,
+    cursor: 'pointer',
+    width: 34,
+    height: 34,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  }
+  const compactActionStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    fontSize: 11,
+    padding: '8px 15px',
+    borderRadius: 9,
+    cursor: 'pointer',
+    fontWeight: 600,
+    letterSpacing: 0
+  }
+  const modalActionStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    fontSize: 14,
+    padding: '14px 0',
+    borderRadius: 12,
+    cursor: 'pointer',
+    fontWeight: 600
+  }
 
   const bildir = (mesaj: string) => {
     setBildirim(mesaj)
@@ -584,6 +645,36 @@ export default function Home() {
     if (!tercihlerYuklendi) return
     localStorage.setItem('yks-bg-style', arkaPlanStili)
   }, [arkaPlanStili, tercihlerYuklendi])
+
+  useEffect(() => {
+    const pointerQuery = window.matchMedia('(pointer: coarse)')
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const updateCursorCapability = () => setCursorKapali(pointerQuery.matches || motionQuery.matches)
+    const frame = window.requestAnimationFrame(updateCursorCapability)
+
+    pointerQuery.addEventListener('change', updateCursorCapability)
+    motionQuery.addEventListener('change', updateCursorCapability)
+
+    const handleMouseMove = (event: MouseEvent) => {
+      setMouseKonum({ x: event.clientX, y: event.clientY })
+      setCursorHazir(true)
+      const target = event.target as HTMLElement | null
+      setCursorInteractive(Boolean(target?.closest('button, a, input, select, textarea, [role="button"], .gorev-card')))
+    }
+
+    const handleMouseLeave = () => setCursorHazir(false)
+
+    window.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseleave', handleMouseLeave)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      pointerQuery.removeEventListener('change', updateCursorCapability)
+      motionQuery.removeEventListener('change', updateCursorCapability)
+      window.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseleave', handleMouseLeave)
+    }
+  }, [])
 
   useEffect(() => {
     if (!kopyaDrag) return
@@ -1020,35 +1111,91 @@ export default function Home() {
   }
 
   return (
-    <div style={{ background:sayfaArkaPlani, minHeight:'100vh', color:tema.text, fontFamily:font.family, padding: isMobile ? '1rem 0.5rem 3rem' : '1.5rem 1rem 3rem' }}>
+    <div className={customCursorAktif ? 'custom-cursor-root' : undefined} style={{ background:sayfaArkaPlani, minHeight:'100vh', color:tema.text, fontFamily:font.family, padding: isMobile ? '1rem 0.5rem 3rem' : '1.5rem 1rem 3rem' }}>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes cursorPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.12); } }
         .fade-in { animation: fadeIn 0.3s ease-out; }
         .slide-in { animation: slideIn 0.2s ease-out; }
         .slide-up { animation: slideUp 0.3s ease-out; }
-        .btn-hover { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn-hover:hover { transform: translateY(-1px); box-shadow: ${tema.hoverShadow}; }
+        .btn-hover { transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.18s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease; }
+        .btn-hover:hover { transform: translateY(-1px); box-shadow: ${tema.hoverShadow}; border-color: ${tema.hoverBorder} !important; }
         .btn-hover:active { transform: translateY(0); }
-        .gorev-card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter: blur(8px); }
+        .gorev-card { transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease, background 0.18s ease, opacity 0.18s ease; backdrop-filter: blur(8px); }
         .gorev-card:hover { transform: translateY(-2px); box-shadow: ${tema.hoverShadow}; border-color: ${tema.hoverBorder} !important; }
         .gorev-card.dragging { opacity: 0.5; transform: rotate(2deg) scale(0.98); cursor: grabbing; }
         .day-column { transition: all 0.2s ease; }
-        .day-column.drag-over { background: ${tema.primary}10; border-radius: 12px; }
+        .day-column.drag-over { background: ${tema.primary}10; border-radius: 14px; outline: 1px solid ${tema.primary}30; outline-offset: 2px; }
         .progress-bar { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
         input:focus, select:focus { border-color: ${tema.primary} !important; outline: none; }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: ${tema.card}; }
         ::-webkit-scrollbar-thumb { background: ${tema.border}; border-radius: 2px; }
+        .button-inner { display:inline-flex; align-items:center; justify-content:center; gap:7px; white-space:nowrap; }
+        .icon-only { line-height:0; }
+        .custom-cursor-root, .custom-cursor-root * { cursor: none !important; }
+        .custom-cursor {
+          position: fixed;
+          left: 0;
+          top: 0;
+          z-index: 5000;
+          pointer-events: none;
+          transform: translate(-50%, -50%);
+          width: 24px;
+          height: 24px;
+          border: 1px solid ${tema.primaryLight};
+          border-radius: 999px;
+          color: ${tema.primaryLight};
+          background: ${tema.mode === 'dark' ? 'rgba(5,7,13,0.38)' : 'rgba(255,255,255,0.42)'};
+          box-shadow: 0 0 0 4px ${tema.primary}16, 0 10px 28px rgba(0,0,0,0.18);
+          backdrop-filter: blur(6px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: width 0.14s ease, height 0.14s ease, border-color 0.14s ease, background 0.14s ease, opacity 0.14s ease;
+        }
+        .custom-cursor.hover {
+          width: 30px;
+          height: 30px;
+          border-color: ${tema.primary};
+          background: ${tema.primary}14;
+        }
+        .custom-cursor.copy, .custom-cursor.drag, .custom-cursor.target {
+          width: 34px;
+          height: 34px;
+          border-color: ${tema.primary};
+          background: ${tema.primary}18;
+          animation: cursorPulse 1.2s ease-in-out infinite;
+        }
+        @media (pointer: coarse), (prefers-reduced-motion: reduce) {
+          .custom-cursor-root, .custom-cursor-root * { cursor: auto !important; }
+          .custom-cursor { display:none; }
+          .fade-in, .slide-in, .slide-up { animation:none; }
+        }
       `}</style>
+
+      {customCursorAktif && cursorHazir && (
+        <div
+          className={`custom-cursor ${cursorMode}`}
+          style={{ left: mouseKonum.x, top: mouseKonum.y, opacity: kopyaDrag ? 0.78 : 1 }}
+          aria-hidden="true"
+        >
+          {cursorMode === 'target' ? (
+            <div style={{ width:8, height:8, borderRadius:'50%', background:tema.primary }} />
+          ) : (
+            <MousePointer2 size={13} strokeWidth={2.2} />
+          )}
+        </div>
+      )}
 
       {/* SÜRE MODAL */}
       {sureModal && (
         <div className="slide-in" style={{ position:'fixed', inset:0, zIndex:2000, background:tema.overlay, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
           <div style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:20, padding:'32px 36px', maxWidth:440, width:'100%', boxShadow:tema.shadow }}>
-            <p style={{ margin:'0 0 6px', fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase' }}>Görev Tamamlandı 🎉</p>
+            <p style={{ margin:'0 0 6px', fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase', display:'flex', alignItems:'center', gap:7 }}><CheckCircle2 size={13} strokeWidth={2.1} /> Görev Tamamlandı</p>
             <p style={{ margin:'0 0 6px', fontSize:20, color:tema.textStrong, fontWeight:600 }}>{sureModal.konu}</p>
             <p style={{ margin:'0 0 24px', fontSize:13, color:getDersRengi(sureModal.ders, tema.mode) }}>{sureModal.ders}</p>
             <p style={{ margin:'0 0 12px', fontSize:14, color:tema.text }}>Kaç dakikada tamamladın?</p>
@@ -1057,8 +1204,8 @@ export default function Home() {
               type="number" min="0" placeholder="örn: 45"
               style={{ width:'100%', background:tema.cardSoft, border:`2px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:28, padding:'16px 20px', outline:'none', textAlign:'center', fontWeight:700, boxSizing:'border-box' }} />
             <div style={{ display:'flex', gap:12, marginTop:20 }}>
-              <button onClick={() => setSureModal(null)} className="btn-hover" style={{ flex:1, fontSize:14, padding:'14px 0', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.faint, cursor:'pointer' }}>iptal</button>
-              <button onClick={sureKaydet} className="btn-hover" style={{ flex:1, fontSize:14, padding:'14px 0', background:tema.success, border:'none', borderRadius:12, color:tema.successText, fontWeight:600, cursor:'pointer' }}>kaydet ✓</button>
+              <button onClick={() => setSureModal(null)} className="btn-hover" style={{ ...modalActionStyle, flex:1, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
+              <button onClick={sureKaydet} className="btn-hover" style={{ ...modalActionStyle, flex:1, background:tema.success, border:'none', color:tema.successText }}><Save {...iconProps} /> kaydet</button>
             </div>
             <button onClick={() => {
               const updated = gorevler.map(g => g.id === sureModal.id ? { ...g, tamam:true, gercek_sure:0 } : g)
@@ -1071,7 +1218,8 @@ export default function Home() {
               setSureModal(null)
               setSureInput('')
             }}
-              style={{ width:'100%', marginTop:12, padding:'12px 0', background:'none', border:'none', color:tema.faint, cursor:'pointer', fontSize:12 }}>süre bilmiyorum, sadece tamamla</button>
+              className="btn-hover"
+              style={{ width:'100%', marginTop:12, padding:'12px 0', background:'none', border:'none', color:tema.faint, cursor:'pointer', fontSize:12, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7 }}><Check {...iconProps} /> süre bilmiyorum, sadece tamamla</button>
           </div>
         </div>
       )}
@@ -1085,7 +1233,7 @@ export default function Home() {
                 <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase' }}>Görev Detayları</p>
                 <p style={{ margin:'4px 0 0', fontSize:20, color:tema.textStrong, fontWeight:600 }}>Görevi Düzenle</p>
               </div>
-              <button onClick={() => setDetayModal(null)} className="btn-hover" style={{ background:tema.border, border:'none', color:tema.muted, cursor:'pointer', fontSize:18, width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+              <button onClick={() => setDetayModal(null)} className="btn-hover icon-only" aria-label="kapat" title="kapat" style={{ background:tema.border, border:'none', color:tema.muted, cursor:'pointer', width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}><X size={16} strokeWidth={2.2} /></button>
             </div>
 
             <p style={{ margin:'0 0 8px', fontSize:12, color:tema.muted, fontWeight:500 }}>Görev Adı</p>
@@ -1101,8 +1249,8 @@ export default function Home() {
             </select>
 
             <div style={{ display:'flex', gap:12 }}>
-              <button onClick={() => setDetayModal(null)} className="btn-hover" style={{ flex:1, fontSize:14, padding:'14px 0', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.faint, cursor:'pointer' }}>iptal</button>
-              <button onClick={detayKaydet} className="btn-hover" style={{ flex:1, fontSize:14, padding:'14px 0', background:tema.primary, border:'none', borderRadius:12, color:tema.onPrimary, fontWeight:600, cursor:'pointer' }}>kaydet</button>
+              <button onClick={() => setDetayModal(null)} className="btn-hover" style={{ ...modalActionStyle, flex:1, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
+              <button onClick={detayKaydet} className="btn-hover" style={{ ...modalActionStyle, flex:1, background:tema.primary, border:'none', color:tema.onPrimary }}><Save {...iconProps} /> kaydet</button>
             </div>
           </div>
         </div>
@@ -1117,7 +1265,7 @@ export default function Home() {
                 <p style={{ margin:0, fontSize:18, color:tema.textStrong, fontWeight:600 }}>{authMode === 'login' ? 'Giriş Yap' : 'Kayıt Ol'}</p>
                 <p style={{ margin:'4px 0 0', fontSize:12, color:tema.faint }}>Görevlerin cloud&apos;da kayıtlı kalsın</p>
               </div>
-              <button onClick={() => { setAuthModal(false); setAuthError(''); }} className="btn-hover" style={{ background:tema.cardSoft, border:'none', color:tema.muted, cursor:'pointer', fontSize:18, width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+              <button onClick={() => { setAuthModal(false); setAuthError(''); }} className="btn-hover icon-only" aria-label="kapat" title="kapat" style={{ background:tema.cardSoft, border:'none', color:tema.muted, cursor:'pointer', width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}><X size={16} strokeWidth={2.2} /></button>
             </div>
 
             {authError && (
@@ -1134,7 +1282,7 @@ export default function Home() {
 
             <button onClick={handleAuth} disabled={authLoading}
               style={{ width:'100%', marginTop:16, padding:'14px 0', background:tema.primary, border:'none', borderRadius:12, color:tema.onPrimary, fontWeight:600, fontSize:14, cursor: authLoading ? 'not-allowed' : 'pointer', opacity: authLoading ? 0.6 : 1 }}>
-              {authLoading ? 'bekle...' : authMode === 'login' ? 'giriş yap' : 'kayıt ol'}
+              <span className="button-inner">{authMode === 'login' ? <LogIn {...iconProps} /> : <Plus {...iconProps} />}{authLoading ? 'bekle...' : authMode === 'login' ? 'giriş yap' : 'kayıt ol'}</span>
             </button>
 
             <div style={{ marginTop:16, textAlign:'center' }}>
@@ -1156,7 +1304,7 @@ export default function Home() {
                 <p style={{ margin:0, fontSize:18, color:tema.textStrong, fontWeight:600 }}>Tema Ayarları</p>
                 <p style={{ margin:'4px 0 0', fontSize:12, color:tema.faint }}>Uygulamanın görünümünü özelleştir</p>
               </div>
-              <button onClick={() => setAyarlarAcik(false)} className="btn-hover" style={{ background:tema.cardSoft, border:'none', color:tema.muted, cursor:'pointer', fontSize:18, width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+              <button onClick={() => setAyarlarAcik(false)} className="btn-hover icon-only" aria-label="kapat" title="kapat" style={{ background:tema.cardSoft, border:'none', color:tema.muted, cursor:'pointer', width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}><X size={16} strokeWidth={2.2} /></button>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
               {[
@@ -1268,7 +1416,7 @@ export default function Home() {
                       <p style={{ margin:0, fontSize:14, color:t.textStrong, fontWeight:600 }}>{t.name}</p>
                       {aktifTema === key && (
                         <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:t.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                          <svg width="12" height="10" viewBox="0 0 10 7"><path d="M1.5 3.5L3.5 5.5L8.5 1.5" stroke={t.onPrimary} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+                          <Check size={12} strokeWidth={2.4} color={t.onPrimary} />
                         </div>
                       )}
                     </button>
@@ -1303,7 +1451,7 @@ export default function Home() {
                     </div>
                     {aktifFont === key && (
                       <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:tema.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <svg width="12" height="10" viewBox="0 0 10 7"><path d="M1.5 3.5L3.5 5.5L8.5 1.5" stroke={tema.onPrimary} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+                        <Check size={12} strokeWidth={2.4} color={tema.onPrimary} />
                       </div>
                     )}
                   </button>
@@ -1325,30 +1473,30 @@ export default function Home() {
           {user ? (
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <span style={{ fontSize:10, color:tema.faint }}>{user.email}</span>
-              <button onClick={handleLogout} className="btn-hover" style={{ fontSize:10, padding:'5px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:6, color:tema.faint, cursor:'pointer' }}>çıkış</button>
+              <button onClick={handleLogout} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.faint, cursor:'pointer', fontWeight:600 }}><LogOut size={12} strokeWidth={2.1} /> çıkış</button>
             </div>
           ) : (
-            <button onClick={() => { setAuthModal(true); setAuthMode('login'); setAuthError(''); }} className="btn-hover" style={{ fontSize:10, padding:'5px 12px', background:tema.primary, border:'none', borderRadius:6, color:tema.onPrimary, cursor:'pointer', fontWeight:500 }}>giriş yap</button>
+            <button onClick={() => { setAuthModal(true); setAuthMode('login'); setAuthError(''); }} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.primary, border:'none', borderRadius:7, color:tema.onPrimary, cursor:'pointer', fontWeight:600 }}><LogIn size={12} strokeWidth={2.1} /> giriş yap</button>
           )}
-          <button onClick={() => setAyarlarAcik(true)} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:tema.muted, cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>⚙</button>
-          <button onClick={() => { setGunOffset(o => o-1); }} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:tema.muted, cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
+          <button onClick={() => setAyarlarAcik(true)} className="btn-hover icon-only" aria-label="ayarlar" title="ayarlar" style={iconButtonStyle}><Settings size={15} strokeWidth={2.1} /></button>
+          <button onClick={() => { setGunOffset(o => o-1); }} className="btn-hover icon-only" aria-label="önceki gün" title="önceki gün" style={iconButtonStyle}><ChevronLeft size={16} strokeWidth={2.2} /></button>
           <div style={{ textAlign:'center', minWidth:80 }}>
             <p style={{ margin:0, fontSize:11, fontWeight:500, color: gunOffset===0 ? tema.primary:tema.faint }}>
               {gunOffset===0 ? 'bu hafta' : gunOffset>0 ? `+${gunOffset} gün` : `${gunOffset} gün`}
             </p>
             <p style={{ margin:'2px 0 0', fontSize:10, color:tema.faint }}>{formatHafta(gunOffset)}</p>
           </div>
-          <button onClick={() => { setGunOffset(o => o+1); }} className="btn-hover" style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:8, color:tema.muted, cursor:'pointer', fontSize:16, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
+          <button onClick={() => { setGunOffset(o => o+1); }} className="btn-hover icon-only" aria-label="sonraki gün" title="sonraki gün" style={iconButtonStyle}><ChevronRight size={16} strokeWidth={2.2} /></button>
           <div style={{ width:54, display:'flex', justifyContent:'flex-end' }}>
-            <button onClick={() => setGunOffset(0)} className="btn-hover" style={{ visibility: gunOffset !== 0 ? 'visible' : 'hidden', pointerEvents: gunOffset !== 0 ? 'auto' : 'none', background:tema.primary, border:'none', borderRadius:6, color:tema.onPrimary, cursor:'pointer', fontSize:10, fontWeight:500, padding:'5px 10px' }}>bugün</button>
+            <button onClick={() => setGunOffset(0)} className="btn-hover" style={{ visibility: gunOffset !== 0 ? 'visible' : 'hidden', pointerEvents: gunOffset !== 0 ? 'auto' : 'none', background:tema.primary, border:'none', borderRadius:7, color:tema.onPrimary, cursor:'pointer', fontSize:10, fontWeight:600, padding:'6px 10px', display:'inline-flex', alignItems:'center', gap:5 }}><CalendarDays size={11} strokeWidth={2.1} /> bugün</button>
           </div>
         </div>
       </div>
 
       {/* İlerleme */}
-      <div style={{ background:tema.card, borderRadius:12, padding:'12px 16px', marginBottom:'1rem', border:`1px solid ${tema.border}` }}>
+      <div style={{ background:tema.card, borderRadius:14, padding:'13px 16px', marginBottom:'1rem', border:`1px solid ${tema.border}`, boxShadow: arkaPlanStili === 'balanced' ? 'none' : tema.hoverShadow }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
-          <span style={{ fontSize:11, color:tema.muted, fontWeight:500 }}>Haftalık İlerleme</span>
+          <span style={{ fontSize:11, color:tema.muted, fontWeight:600, display:'inline-flex', alignItems:'center', gap:7 }}><CheckCircle2 size={13} strokeWidth={2.1} /> Haftalık İlerleme</span>
           <span style={{ fontSize:12, color:tema.primaryLight, fontWeight:600 }}>{yuzde}%</span>
         </div>
         <div style={{ flex:1, height:4, background:tema.border, borderRadius:99, overflow:'hidden' }}>
@@ -1359,11 +1507,11 @@ export default function Home() {
 
       {/* Hızlı aksiyonlar */}
       <div style={{ marginBottom:'1rem', display:'flex', gap:8, flexWrap:'wrap' }}>
-        <button onClick={() => setTopluAcik(v => !v)} className="btn-hover" style={{ fontSize:11, padding:'8px 16px', background: topluAcik?tema.primary:tema.card, border:`1px solid ${topluAcik ? tema.primary : tema.border}`, borderRadius:8, color: topluAcik?tema.onPrimary:tema.muted, cursor:'pointer', letterSpacing:0.5, fontWeight:500 }}>
-          {topluAcik ? '× kapat' : '⊕ toplu görev ekle'}
+        <button onClick={() => setTopluAcik(v => !v)} className="btn-hover" style={{ ...compactActionStyle, background: topluAcik?tema.primary:tema.card, border:`1px solid ${topluAcik ? tema.primary : tema.border}`, color: topluAcik?tema.onPrimary:tema.muted }}>
+          {topluAcik ? <X {...iconProps} /> : <ListPlus {...iconProps} />}{topluAcik ? 'kapat' : 'toplu görev ekle'}
         </button>
-        <button onClick={openBitmeyenPanel} disabled={bitmeyenSayisi === 0} className="btn-hover" style={{ fontSize:11, padding:'8px 16px', background: bitmeyenAcik?tema.primary:tema.card, border:`1px solid ${bitmeyenAcik ? tema.primary : tema.border}`, borderRadius:8, color: bitmeyenAcik?tema.onPrimary:tema.muted, cursor: bitmeyenSayisi === 0 ? 'not-allowed' : 'pointer', opacity: bitmeyenSayisi === 0 ? 0.45 : 1, letterSpacing:0.5, fontWeight:500 }}>
-          {bitmeyenAcik ? '× kapat' : `bitmeyenleri taşı (${bitmeyenSayisi})`}
+        <button onClick={openBitmeyenPanel} disabled={bitmeyenSayisi === 0} className="btn-hover" style={{ ...compactActionStyle, background: bitmeyenAcik?tema.primary:tema.card, border:`1px solid ${bitmeyenAcik ? tema.primary : tema.border}`, color: bitmeyenAcik?tema.onPrimary:tema.muted, cursor: bitmeyenSayisi === 0 ? 'not-allowed' : 'pointer', opacity: bitmeyenSayisi === 0 ? 0.45 : 1 }}>
+          {bitmeyenAcik ? <X {...iconProps} /> : <MoveRight {...iconProps} />}{bitmeyenAcik ? 'kapat' : `bitmeyenleri taşı (${bitmeyenSayisi})`}
         </button>
       </div>
 
@@ -1382,9 +1530,9 @@ export default function Home() {
             })}
           </div>
           <div style={{ display:'flex', gap:12, justifyContent:'flex-end' }}>
-            <button onClick={() => setBitmeyenAcik(false)} className="btn-hover" style={{ fontSize:13, padding:'12px 20px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.faint, cursor:'pointer' }}>iptal</button>
-            <button onClick={bitmeyenleriTasi} disabled={tasinabilirSayisi === 0} className="btn-hover" style={{ fontSize:13, padding:'12px 20px', background:tema.primary, border:'none', borderRadius:10, color:tema.onPrimary, fontWeight:600, cursor: tasinabilirSayisi === 0 ? 'not-allowed' : 'pointer', opacity: tasinabilirSayisi === 0 ? 0.55 : 1 }}>
-              taşı
+            <button onClick={() => setBitmeyenAcik(false)} className="btn-hover" style={{ ...modalActionStyle, fontSize:13, padding:'12px 20px', background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
+            <button onClick={bitmeyenleriTasi} disabled={tasinabilirSayisi === 0} className="btn-hover" style={{ ...modalActionStyle, fontSize:13, padding:'12px 20px', background:tema.primary, border:'none', color:tema.onPrimary, cursor: tasinabilirSayisi === 0 ? 'not-allowed' : 'pointer', opacity: tasinabilirSayisi === 0 ? 0.55 : 1 }}>
+              <MoveRight {...iconProps} /> taşı
             </button>
           </div>
         </div>
@@ -1419,9 +1567,9 @@ export default function Home() {
             </div>
           </div>
           <div style={{ display:'flex', gap:12, justifyContent:'flex-end' }}>
-            <button onClick={() => setTopluAcik(false)} className="btn-hover" style={{ fontSize:13, padding:'12px 20px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.faint, cursor:'pointer' }}>iptal</button>
-            <button onClick={topluEkle} className="btn-hover" style={{ fontSize:13, padding:'12px 20px', background:tema.primary, border:'none', borderRadius:10, color:tema.onPrimary, fontWeight:600, cursor:'pointer' }}>
-              ekle ({seciliGunler.length} gün)
+            <button onClick={() => setTopluAcik(false)} className="btn-hover" style={{ ...modalActionStyle, fontSize:13, padding:'12px 20px', background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
+            <button onClick={topluEkle} className="btn-hover" style={{ ...modalActionStyle, fontSize:13, padding:'12px 20px', background:tema.primary, border:'none', color:tema.onPrimary }}>
+              <Plus {...iconProps} /> ekle ({seciliGunler.length} gün)
             </button>
           </div>
         </div>
@@ -1462,7 +1610,7 @@ export default function Home() {
               {/* Toplam çalışma süresi */}
               {gunToplamSure > 0 && (
                 <div style={{ padding:'6px 8px', borderRadius:8, background:`${tema.primary}15`, border:`1px solid ${tema.primary}30`, textAlign:'center' }}>
-                  <p style={{ margin:0, fontSize:10, color:tema.primaryLight, fontWeight:600 }}>⏱ {formatSure(gunToplamSure)}</p>
+                  <p style={{ margin:0, fontSize:10, color:tema.primaryLight, fontWeight:600, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:5 }}><Clock size={11} strokeWidth={2.1} /> {formatSure(gunToplamSure)}</p>
                 </div>
               )}
 
@@ -1487,11 +1635,11 @@ export default function Home() {
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                         <span style={{ fontSize:10, color:tema.faint, fontWeight:500 }}>{gs > 0 ? `${gs}dk` : '—'}</span>
                         <div style={{ display:'flex', gap:4 }}>
-                          <button onClick={() => tickla(g)} className="btn-hover" style={{ width:18, height:18, borderRadius:5, border: g.tamam?'none':`2px solid ${tema.border}`, background: g.tamam?renk:'transparent', cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            {g.tamam && <svg width="10" height="8" viewBox="0 0 10 7"><path d="M1.5 3.5L3.5 5.5L8.5 1.5" stroke="#000" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>}
+                          <button onClick={() => tickla(g)} className="btn-hover icon-only" title={g.tamam ? 'tamamlandı' : 'tamamla'} aria-label={g.tamam ? 'görev tamamlandı' : 'görevi tamamla'} style={{ width:19, height:19, borderRadius:6, border: g.tamam?'none':`2px solid ${tema.border}`, background: g.tamam?renk:'transparent', color:g.tamam?'#000':tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            {g.tamam && <Check size={11} strokeWidth={2.4} />}
                           </button>
-                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => kopyaBaslat(g, e)} draggable={false} className="btn-hover" title="çoğalt" aria-label="görevi çoğalt" style={{ background:'none', border:'none', color:tema.faint, cursor:'copy', fontSize:13, lineHeight:1, padding:0, display:'flex', alignItems:'center', fontWeight:500 }}>⧉</button>
-                          <button onClick={() => sil(g.id)} className="btn-hover" style={{ background:'none', border:'none', color:tema.faint, cursor:'pointer', fontSize:16, lineHeight:1, padding:0, display:'flex', alignItems:'center', fontWeight:300 }}>×</button>
+                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => kopyaBaslat(g, e)} draggable={false} className="btn-hover icon-only" title="çoğalt" aria-label="görevi çoğalt" style={{ background:'none', border:'none', color:tema.faint, cursor:'copy', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Copy size={13} strokeWidth={2.1} /></button>
+                          <button onClick={() => sil(g.id)} className="btn-hover icon-only" title="sil" aria-label="görevi sil" style={{ background:'none', border:'none', color:tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Trash2 size={13} strokeWidth={2.1} /></button>
                         </div>
                       </div>
                     </div>
@@ -1508,12 +1656,12 @@ export default function Home() {
                     {DERSLER.map(d => <option key={d}>{d}</option>)}
                   </select>
                   <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={() => setEkleGun(null)} className="btn-hover" style={{ flex:1, fontSize:13, padding:'12px 0', background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.faint, cursor:'pointer' }}>iptal</button>
-                    <button onClick={ekle} className="btn-hover" style={{ flex:1, fontSize:13, padding:'12px 0', background:tema.primary, border:'none', borderRadius:10, color:tema.onPrimary, fontWeight:600, cursor:'pointer' }}>ekle</button>
+                    <button onClick={() => setEkleGun(null)} className="btn-hover" style={{ ...modalActionStyle, flex:1, fontSize:13, padding:'12px 0', background:tema.card, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
+                    <button onClick={ekle} className="btn-hover" style={{ ...modalActionStyle, flex:1, fontSize:13, padding:'12px 0', background:tema.primary, border:'none', color:tema.onPrimary }}><Plus {...iconProps} /> ekle</button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => { setEkleGun(i); setFormKonu(''); }} className="btn-hover" style={{ width:'100%', padding:'14px 0', fontSize:20, cursor: kopyaDrag ? 'copy' : 'pointer', border:`2px dashed ${tema.border}`, borderRadius:12, background:'transparent', color:tema.faint, fontWeight:300 }}>+</button>
+                <button onClick={() => { setEkleGun(i); setFormKonu(''); }} className="btn-hover" aria-label={`${gunBilgisi.label} gününe görev ekle`} style={{ width:'100%', padding:'14px 0', fontSize:20, cursor: kopyaDrag ? 'copy' : 'pointer', border:`2px dashed ${tema.border}`, borderRadius:12, background:'transparent', color:tema.faint, fontWeight:300, display:'flex', alignItems:'center', justifyContent:'center' }}><Plus size={19} strokeWidth={2.1} /></button>
               )}
             </div>
           )
