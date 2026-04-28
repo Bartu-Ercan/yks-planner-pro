@@ -14,7 +14,7 @@
 - Ana tablo `gorevler`.
 - RLS kullanıcı bazlıdır.
 - Misafir görevleri `localStorage` içinde saklanır.
-- Tema tercihi `localStorage` içinde `yks-tema` anahtarıyla saklanır.
+- Tema tercihi `localStorage` içinde `yks-tema` anahtarıyla saklanır; tema sistemi 6 dark ve 6 light seçenekten oluşur.
 
 ## Planner Notları
 

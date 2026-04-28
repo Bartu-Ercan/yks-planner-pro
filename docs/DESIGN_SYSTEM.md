@@ -8,10 +8,10 @@ Yeni UI, mevcut planner ekranının devamı gibi görünmelidir.
 
 Korunacak kimlik:
 
-- Koyu, odaklı çalışma paneli.
+- Odaklı çalışma paneli; dark temalar ana karakteri korur, light temalar aynı kompakt dili taşır.
 - Kompakt ve yoğun ama okunabilir yerleşim.
 - Yedi günlük board mantığı.
-- Tema bazlı renk vurguları.
+- Tema bazlı dark/light renk vurguları.
 - Ders bazlı renk şeritleri.
 - Küçük etiketler, ince borderlar, kontrollü radius.
 - Minimal animasyon ve net hover hissi.
@@ -28,7 +28,7 @@ Yapılmayacaklar:
 
 ## Layout
 
-Ana yüzey tam ekran koyu zemindir.
+Ana yüzey tam ekran tema zeminidir.
 
 - Desktop padding: yaklaşık `1.5rem 1rem 3rem`.
 - Mobile padding: yaklaşık `1rem 0.5rem 3rem`.
@@ -40,32 +40,44 @@ Ana yüzey tam ekran koyu zemindir.
 
 ## Color System
 
-Ana nötrler:
+Tema sistemi v2, her temayı kendi token setiyle taşır. Renkler Color Hunt'ın hand-picked palette mantığı ve Flat UI Colors'ın dengeli kontrast yaklaşımı baz alınarak seçilir; dış palette birebir kopyalanmaz.
 
-| Token | Değer | Kullanım |
-| --- | --- | --- |
-| `bg` | `#0a0a0a` | Sayfa zemini |
-| `surface` | `#111827` | Kart, panel, gün başlığı |
-| `surface-deep` | `#030712` | Input, tamamlanmış kart, iç panel |
-| `border` | `#1f2937` | İnce ayrım çizgileri |
-| `text` | `#e5e5e5` | Ana metin |
-| `text-strong` | `#ffffff` | Başlık |
-| `text-muted` | `#9ca3af` | İkincil metin |
-| `text-dim` | `#6b7280` | Yardımcı metin |
-| `text-faint` | `#4b5563` | Pasif aksiyonlar |
+Tema tokenları:
 
-Tema sistemi üç vurgu rengi kullanır: `primary`, `primaryLight`, `accent`.
+| Token | Kullanım |
+| --- | --- |
+| `mode` | `dark` veya `light` görsel mod |
+| `primary` | Ana buton, aktif durum, focus border |
+| `primaryLight` | İkincil vurgu, aktif sayaç, gradient ucu |
+| `accent` | Progress gradient ve yardımcı vurgu |
+| `bg`, `bgGradient` | Sayfa zemini |
+| `card` | Kart, panel, gün başlığı |
+| `cardSoft` | Input, iç panel, tamamlanmış kart |
+| `border`, `hoverBorder` | İnce ayrım ve hover border |
+| `text`, `textStrong` | Ana metin ve başlık |
+| `muted`, `faint` | İkincil metin ve pasif aksiyon |
+| `onPrimary` | Primary zemin üstü metin |
+| `success`, `successText` | Toast ve başarı durumu |
+| `overlay`, `shadow`, `hoverShadow` | Modal ve hover derinliği |
 
-Mevcut temalar:
+Mevcut tema seti:
 
-| Tema | Primary | Primary Light | Accent |
-| --- | --- | --- | --- |
-| Okyanus | `#3b82f6` | `#60a5fa` | `#22d3ee` |
-| Gece | `#8b5cf6` | `#a78bfa` | `#c084fc` |
-| Orman | `#22c55e` | `#4ade80` | `#34d399` |
-| Ateş | `#ef4444` | `#f87171` | `#fb923c` |
-| Günbatımı | `#f97316` | `#fb923c` | `#facc15` |
-| Pembe Rüya | `#ec4899` | `#f472b6` | `#fbbf24` |
+| Tema | Mode | Primary | Primary Light | Accent |
+| --- | --- | --- | --- | --- |
+| Okyanus | Dark | `#3b82f6` | `#60a5fa` | `#22d3ee` |
+| Gece | Dark | `#a78bfa` | `#c4b5fd` | `#f0abfc` |
+| Orman | Dark | `#10b981` | `#34d399` | `#a3e635` |
+| Ateş | Dark | `#f43f5e` | `#fb7185` | `#fb923c` |
+| Günbatımı | Dark | `#f97316` | `#fdba74` | `#facc15` |
+| Pembe Rüya | Dark | `#ec4899` | `#f472b6` | `#f59e0b` |
+| Sabah | Light | `#d97706` | `#f59e0b` | `#0891b2` |
+| Gökyüzü | Light | `#2563eb` | `#60a5fa` | `#06b6d4` |
+| Mint | Light | `#059669` | `#34d399` | `#14b8a6` |
+| Lavanta | Light | `#7c3aed` | `#a78bfa` | `#ec4899` |
+| Şeftali | Light | `#ea580c` | `#fb923c` | `#f43f5e` |
+| Studio | Light | `#111827` | `#374151` | `#2563eb` |
+
+Eski `localStorage` tema anahtarları korunur: `mavi`, `mor`, `yesil`, `kirmizi`, `turuncu`, `pembe`. Yeni seçimler yine `yks-tema` içinde saklanır.
 
 Tema vurgusu kullanılacak yerler:
 
@@ -151,7 +163,7 @@ Spacing:
 
 ### Progress Panel
 
-- `surface` zemin.
+- Tema `card` zemini.
 - `1px` border.
 - `12px` radius.
 - İnce `4px` progress bar.
@@ -164,12 +176,12 @@ Spacing:
 - Desktop: 7 eşit kolon.
 - Mobile: 7 kolon yatay scroll.
 - Bugünün başlığı `primary -> primaryLight` gradient alır.
-- Normal gün başlığı `surface` zemin ve border alır.
+- Normal gün başlığı tema `card` zemin ve border alır.
 - Gün başlığı kompakt kalır.
 
 ### Task Card
 
-- `surface` zemin.
+- Tema `card` zemini.
 - `1px` border.
 - `10px` radius.
 - Sol tarafta ders renginde `3px` şerit.
@@ -177,7 +189,7 @@ Spacing:
 - Konu kısa, tek satır ellipsis.
 - Süre alt solda.
 - Tamamla ve sil aksiyonları alt sağda.
-- Tamamlanan görev `surface-deep`, düşük opacity, line-through.
+- Tamamlanan görev `cardSoft`, düşük opacity, line-through.
 - Hover: hafif yukarı hareket ve yumuşak shadow.
 
 ### Add Button
@@ -186,11 +198,11 @@ Spacing:
 - Transparent background.
 - `2px dashed border`.
 - Büyük `+` karakteri.
-- Renk pasif `text-faint`.
+- Renk pasif `faint`.
 
 ### Forms
 
-- Input/select zemini genelde `surface-deep`.
+- Input/select zemini genelde `cardSoft`.
 - Border `border`.
 - Focus border tema `primary`.
 - Formlar kompakt ama dokunulabilir olmalı.
@@ -198,18 +210,18 @@ Spacing:
 
 ### Buttons
 
-- Primary: tema `primary`, beyaz metin, `600` weight.
-- Secondary: `surface-deep` veya `surface`, border, muted text.
-- Icon button: kare `32px`, `surface`, border.
+- Primary: tema `primary`, `onPrimary` metin, `600` weight.
+- Secondary: `cardSoft` veya `card`, border, muted text.
+- Icon button: kare `32px`, `card`, border.
 - Text-only aksiyonlar sadece ikincil veya düşük riskli komutlarda.
 
 ### Modals
 
-- Overlay: `rgba(0,0,0,0.8)`.
-- Modal zemin: `surface`.
+- Overlay: tema `overlay`.
+- Modal zemin: tema `card`.
 - Border: `1px solid border`.
 - Radius: `20px`.
-- Shadow: büyük, koyu.
+- Shadow: tema `shadow`.
 - Genişlik: `420-480px`.
 - İçerik: kısa label, başlık, form, iki aksiyon.
 - Modal yeni sayfa gibi davranmaz; hızlı görev akışı için kalır.
@@ -217,15 +229,15 @@ Spacing:
 ### Theme Selector
 
 - Ayarlar modalı içinde kart grid.
-- Tema kartları `surface`, `border`, `16px` radius.
+- Dark / Light segmented control kullanır.
+- Tema kartları kendi `bgGradient` önizlemesini, `border`, `16px` radius ve kompakt yoğunluğu korur.
 - Her tema üç swatch gösterir: `primary`, `primaryLight`, `accent`.
 - Aktif tema border ve küçük check ile belirtilir.
 
 ### Toast
 
 - Fixed bottom center.
-- Yeşil başarı rengi: `#22c55e`.
-- Siyah metin.
+- Tema `success` zemini ve `successText` metni.
 - `12px` radius.
 - Kısa metin.
 
@@ -275,7 +287,8 @@ Yeni frontend işi bitmeden şunlar kontrol edilir:
 - [ ] Mevcut planner kimliği korunuyor.
 - [ ] Sidebar veya bottom nav eklenmedi.
 - [ ] Uydurma ürün bölümü eklenmedi.
-- [ ] Tema renkleri doğru kullanıldı.
+- [ ] Tema tokenları doğru kullanıldı.
+- [ ] Dark ve light tema kontrastları okunabilir.
 - [ ] Mobile yatay board davranışı bozulmadı.
 - [ ] Task card yoğunluğu ve boyutu mevcut stile yakın.
 - [ ] Modal, button ve input stilleri mevcut sistemden türedi.
