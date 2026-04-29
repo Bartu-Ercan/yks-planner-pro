@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, type CSSProperties } from 'react'
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import {
   CalendarDays,
   Check,
@@ -42,7 +42,7 @@ type TemaMode = 'dark' | 'light'
 type AyarSekmesi = 'tema' | 'font' | 'cursor'
 type ArkaPlanStili = 'balanced' | 'atmospheric'
 type FontKey = 'dmMono' | 'geistMono' | 'jetBrainsMono' | 'ibmPlexMono' | 'spaceGrotesk' | 'manrope'
-type CursorKey = 'minimal' | 'dot' | 'soft' | 'focus' | 'ring' | 'system'
+type CursorKey = 'minimal' | 'system'
 
 interface Tema {
   name: string
@@ -123,28 +123,8 @@ const FONTLAR: Record<FontKey, FontSecenegi> = {
 const CURSORLAR: Record<CursorKey, CursorSecenegi> = {
   minimal: {
     name: 'Sade',
-    tone: 'Varsayılan',
-    preview: 'Halka sadece etkileşimde'
-  },
-  dot: {
-    name: 'Nokta',
-    tone: 'Sessiz',
-    preview: 'Küçük accent odak'
-  },
-  soft: {
-    name: 'Yumuşak',
-    tone: 'Hafif',
-    preview: 'Sade glow hissi'
-  },
-  focus: {
-    name: 'Odak',
-    tone: 'Net',
-    preview: 'İnce hedef halkası'
-  },
-  ring: {
-    name: 'Halka',
-    tone: 'Belirgin',
-    preview: 'Eski ring hissi'
+    tone: 'Renkli ok',
+    preview: 'Tema rengine uygun düz imleç'
   },
   system: {
     name: 'Sistem',
@@ -436,7 +416,7 @@ const normalizeTemaKey = (key: string | null) => key && TEMALAR[key] ? key : 'ma
 const normalizeFontKey = (key: string | null): FontKey =>
   key && key in FONTLAR ? (key as FontKey) : 'dmMono'
 const normalizeCursorKey = (key: string | null): CursorKey =>
-  key && key in CURSORLAR ? (key as CursorKey) : 'minimal'
+  key === 'system' ? 'system' : 'minimal'
 const normalizeArkaPlanStili = (key: string | null): ArkaPlanStili =>
   key === 'atmospheric' ? 'atmospheric' : 'balanced'
 const getDengeliArkaPlan = (tema: Tema) => tema.mode === 'dark' ? '#05070d' : '#f8fafc'
@@ -587,6 +567,8 @@ export default function Home() {
   const [cursorHazir, setCursorHazir] = useState(false)
   const [cursorInteractive, setCursorInteractive] = useState(false)
   const [cursorKapali, setCursorKapali] = useState(false)
+  const pointerDragRef = useRef<{ task: Gorev; startX: number; startY: number; active: boolean; pointerId: number } | null>(null)
+  const dragClickEngelleRef = useRef(false)
 
   const seciliTema = TEMALAR[aktifTema]
   const tema = arkaPlanStili === 'balanced' ? getDengeliTema(seciliTema) : seciliTema
@@ -729,11 +711,9 @@ export default function Home() {
       setCursorInteractive(Boolean(target?.closest('button, a, input, select, textarea, [role="button"], .gorev-card')))
     }
 
-    const handleDragMove = (event: DragEvent) => updatePointerKonum(event.clientX, event.clientY)
     const handleMouseLeave = () => setCursorHazir(false)
 
     window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('dragover', handleDragMove)
     document.addEventListener('mouseleave', handleMouseLeave)
 
     return () => {
@@ -741,7 +721,6 @@ export default function Home() {
       pointerQuery.removeEventListener('change', updateCursorCapability)
       motionQuery.removeEventListener('change', updateCursorCapability)
       window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('dragover', handleDragMove)
       document.removeEventListener('mouseleave', handleMouseLeave)
     }
   }, [updatePointerKonum])
@@ -1101,79 +1080,43 @@ export default function Home() {
     setSeciliGunler(gs => gs.includes(i) ? gs.filter(x => x !== i) : [...gs, i])
   }
 
-  const getBosDragGorseli = () => {
-    const existing = document.getElementById('yks-empty-drag-image')
-    if (existing) return existing
-
-    const element = document.createElement('div')
-    element.id = 'yks-empty-drag-image'
-    Object.assign(element.style, {
-      position: 'fixed',
-      left: '-100px',
-      top: '-100px',
-      width: '1px',
-      height: '1px',
-      opacity: '0',
-      pointerEvents: 'none'
-    })
-    document.body.appendChild(element)
-    return element
+  const getPointerGunIndex = (x: number, y: number) => {
+    const element = document.elementFromPoint(x, y) as HTMLElement | null
+    const column = element?.closest<HTMLElement>('.day-column')
+    const index = column?.dataset.gunIndex
+    return index === undefined ? null : Number(index)
   }
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, gorev: Gorev) => {
-    setKopyaDrag(null)
-    setDraggingTask(gorev)
-    updatePointerKonum(e.clientX, e.clientY)
-    e.dataTransfer.effectAllowed = 'move'
-    if (customCursorAktif) {
-      e.dataTransfer.setDragImage(getBosDragGorseli(), 0, 0)
-    }
-  }
-
-  const handleDragMove = (e: React.DragEvent<HTMLDivElement>) => {
-    updatePointerKonum(e.clientX, e.clientY)
-  }
-
-  const handleDragOver = (e: React.DragEvent, gunIdx: number) => {
-    e.preventDefault()
-    updatePointerKonum(e.clientX, e.clientY)
-    e.dataTransfer.dropEffect = 'move'
-    setDragOverDay(gunIdx)
-  }
-
-  const handleDragLeave = () => {
-    setDragOverDay(null)
-  }
-
-  const handleDrop = async (targetGun: number) => {
-    if (!draggingTask) return
+  const moveTaskToDay = async (task: Gorev, targetGun: number) => {
     const hedefGun = gorunenGunler[targetGun]
+    if (!hedefGun) return
     
-    // If dropping on the same day, do nothing
-    if (draggingTask.gun === hedefGun.gun && draggingTask.hafta === hedefGun.hafta) {
+    if (task.gun === hedefGun.gun && task.hafta === hedefGun.hafta) {
       setDraggingTask(null)
       setDragOverDay(null)
       return
     }
 
-    const updatedTask = { ...draggingTask, gun: hedefGun.gun, hafta: hedefGun.hafta }
+    const updatedTask = { ...task, gun: hedefGun.gun, hafta: hedefGun.hafta }
 
     if (!user) {
-      const updated = gorevler.map(g => g.id === draggingTask.id ? updatedTask : g)
+      const updated = gorevler.map(g => g.id === task.id ? updatedTask : g)
       setGorevler(updated)
       saveGuest(updated)
     } else {
       const { error } = await supabase
         .from('gorevler')
         .update({ gun: hedefGun.gun, hafta: hedefGun.hafta })
-        .eq('id', draggingTask.id)
+        .eq('id', task.id)
       
       if (error) {
         console.error('Task move error:', error)
         alert('Görev taşınamadı: ' + error.message)
+        setDraggingTask(null)
+        setDragOverDay(null)
         return
       }
-      setGorevler(gorevler.map(g => g.id === draggingTask.id ? updatedTask : g))
+      setGorevler(gorevler.map(g => g.id === task.id ? updatedTask : g))
     }
 
     bildir(`Görev ${hedefGun.label} gününe taşındı`)
@@ -1182,7 +1125,54 @@ export default function Home() {
     setDragOverDay(null)
   }
 
-  const handleDragEnd = () => {
+  const handlePointerDragStart = (e: React.PointerEvent<HTMLDivElement>, gorev: Gorev) => {
+    if (gorev.tamam || e.pointerType !== 'mouse') return
+    const target = e.target as HTMLElement
+    if (target.closest('button, input, select, textarea')) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    pointerDragRef.current = { task: gorev, startX: e.clientX, startY: e.clientY, active: false, pointerId: e.pointerId }
+    updatePointerKonum(e.clientX, e.clientY)
+  }
+
+  const handlePointerDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = pointerDragRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+
+    updatePointerKonum(e.clientX, e.clientY)
+    const mesafe = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY)
+    if (!drag.active && mesafe > 5) {
+      drag.active = true
+      dragClickEngelleRef.current = true
+      setKopyaDrag(null)
+      setDraggingTask(drag.task)
+    }
+
+    if (drag.active) {
+      e.preventDefault()
+      setDragOverDay(getPointerGunIndex(e.clientX, e.clientY))
+    }
+  }
+
+  const handlePointerDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = pointerDragRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+
+    pointerDragRef.current = null
+    if (!drag.active) return
+
+    e.preventDefault()
+    dragClickEngelleRef.current = true
+    const targetGun = getPointerGunIndex(e.clientX, e.clientY)
+    if (targetGun === null) {
+      setDraggingTask(null)
+      setDragOverDay(null)
+      return
+    }
+    void moveTaskToDay(drag.task, targetGun)
+  }
+
+  const handlePointerDragCancel = () => {
+    pointerDragRef.current = null
     setDraggingTask(null)
     setDragOverDay(null)
   }
@@ -1215,12 +1205,18 @@ export default function Home() {
   }
 
   return (
-    <div onClick={handleRootClick} className={customCursorAktif ? 'custom-cursor-root' : undefined} style={{ background:sayfaArkaPlani, minHeight:'100vh', color:tema.text, fontFamily:font.family, padding: isMobile ? '1rem 0.5rem 3rem' : '1.5rem 1rem 3rem' }}>
+    <div
+      onClick={handleRootClick}
+      onPointerMove={handlePointerDragMove}
+      onPointerUp={handlePointerDragEnd}
+      onPointerCancel={handlePointerDragCancel}
+      className={customCursorAktif ? 'custom-cursor-root' : undefined}
+      style={{ background:sayfaArkaPlani, minHeight:'100vh', color:tema.text, fontFamily:font.family, padding: isMobile ? '1rem 0.5rem 3rem' : '1.5rem 1rem 3rem' }}
+    >
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes cursorPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.12); } }
         .fade-in { animation: fadeIn 0.3s ease-out; }
         .slide-in { animation: slideIn 0.2s ease-out; }
         .slide-up { animation: slideUp 0.3s ease-out; }
@@ -1259,88 +1255,11 @@ export default function Home() {
           color: ${tema.primaryLight};
           background: transparent;
           box-shadow: none;
-          filter: drop-shadow(0 4px 10px rgba(0,0,0,0.38));
+          filter: none;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: width 0.14s ease, height 0.14s ease, border-color 0.14s ease, background 0.14s ease, opacity 0.14s ease, border-radius 0.14s ease;
-        }
-        .custom-cursor.cursor-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 999px;
-          background: ${tema.primaryLight};
-          color: transparent;
-          filter: none;
-          box-shadow: 0 0 0 3px ${tema.primary}10;
-        }
-        .custom-cursor.cursor-soft {
-          color: ${tema.primaryLight};
-          filter: drop-shadow(0 0 8px ${tema.primary}88) drop-shadow(0 4px 10px rgba(0,0,0,0.28));
-        }
-        .custom-cursor.cursor-focus {
-          width: 18px;
-          height: 18px;
-          border: 1px solid ${tema.primaryLight};
-          border-radius: 999px;
-          color: transparent;
-          background: transparent;
-          box-shadow: inset 0 0 0 3px ${tema.primary}14;
-          filter: none;
-        }
-        .custom-cursor.cursor-ring {
-          width: 24px;
-          height: 24px;
-          border: 1px solid ${tema.primaryLight};
-          border-radius: 999px;
-          color: ${tema.primaryLight};
-          background: ${tema.mode === 'dark' ? 'rgba(5,7,13,0.26)' : 'rgba(255,255,255,0.32)'};
-          box-shadow: 0 0 0 4px ${tema.primary}12;
-          filter: none;
-        }
-        .custom-cursor.hover {
-          width: 30px;
-          height: 30px;
-          border: 1px solid ${tema.primary};
-          border-radius: 999px;
-          border-color: ${tema.primary};
-          color: ${tema.primaryLight};
-          background: ${tema.primary}14;
-          box-shadow: 0 0 0 4px ${tema.primary}12, 0 10px 28px rgba(0,0,0,0.18);
-          filter: none;
-        }
-        .custom-cursor.copy, .custom-cursor.drag, .custom-cursor.target {
-          width: 34px;
-          height: 34px;
-          border: 1px solid ${tema.primary};
-          border-radius: 999px;
-          border-color: ${tema.primary};
-          color: ${tema.primaryLight};
-          background: ${tema.primary}18;
-          box-shadow: 0 0 0 4px ${tema.primary}12, 0 10px 28px rgba(0,0,0,0.2);
-          filter: none;
-          animation: cursorPulse 1.2s ease-in-out infinite;
-        }
-        .custom-cursor.cursor-dot.hover {
-          width: 14px;
-          height: 14px;
-          border: none;
-          background: ${tema.primaryLight};
-          box-shadow: 0 0 0 5px ${tema.primary}14;
-          color: transparent;
-        }
-        .custom-cursor.cursor-dot.copy, .custom-cursor.cursor-dot.drag, .custom-cursor.cursor-dot.target {
-          width: 18px;
-          height: 18px;
-          border: none;
-          background: ${tema.primary};
-          box-shadow: 0 0 0 6px ${tema.primary}16;
-          color: transparent;
-        }
-        .custom-cursor.cursor-focus.hover, .custom-cursor.cursor-focus.copy, .custom-cursor.cursor-focus.drag, .custom-cursor.cursor-focus.target {
-          width: 28px;
-          height: 28px;
-          color: transparent;
+          transition: opacity 0.12s ease;
         }
         @media (pointer: coarse), (prefers-reduced-motion: reduce) {
           .custom-cursor-root, .custom-cursor-root * { cursor: auto !important; }
@@ -1355,17 +1274,11 @@ export default function Home() {
           style={{ left: mouseKonum.x, top: mouseKonum.y, opacity: kopyaDrag || draggingTask ? 0.78 : 1 }}
           aria-hidden="true"
         >
-          {aktifCursor === 'dot' ? null : aktifCursor === 'focus' ? (
-            <div style={{ width:5, height:5, borderRadius:'50%', background:tema.primaryLight }} />
-          ) : cursorMode === 'target' ? (
-            <div style={{ width:8, height:8, borderRadius:'50%', background:tema.primary }} />
-          ) : (
-            <MousePointer2 size={13} strokeWidth={2.2} />
-          )}
+          <MousePointer2 size={15} strokeWidth={2.2} />
         </div>
       )}
 
-      {customCursorAktif && cursorHazir && draggingTask && !kopyaDrag && (
+      {cursorHazir && draggingTask && !kopyaDrag && (
         <div style={{ position:'fixed', left:mouseKonum.x, top:mouseKonum.y, transform:'translate(-50%, -50%)', zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:tema.shadow, pointerEvents:'none', opacity:0.92 }}>
           <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:getDersRengi(draggingTask.ders, tema.mode), borderRadius:'3px 0 0 3px' }} />
           <div style={{ paddingLeft:10 }}>
@@ -1668,17 +1581,7 @@ export default function Home() {
                       <p style={{ margin:0, fontSize:11, color:tema.primaryLight, fontWeight:600 }}>{c.tone}</p>
                       <p style={{ margin:'8px 0 12px', fontSize:16, color:tema.textStrong, fontWeight:600 }}>{c.name}</p>
                       <div style={{ height:38, borderRadius:10, background:tema.card, border:`1px solid ${tema.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        {key === 'dot' ? (
-                          <span style={{ width:8, height:8, borderRadius:'50%', background:tema.primaryLight, display:'block' }} />
-                        ) : key === 'soft' ? (
-                          <MousePointer2 size={18} strokeWidth={2.2} color={tema.primaryLight} style={{ filter:`drop-shadow(0 0 7px ${tema.primary})` }} />
-                        ) : key === 'focus' ? (
-                          <span style={{ width:24, height:24, borderRadius:'50%', border:`1px solid ${tema.primaryLight}`, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
-                            <span style={{ width:5, height:5, borderRadius:'50%', background:tema.primaryLight }} />
-                          </span>
-                        ) : key === 'ring' ? (
-                          <span style={{ width:26, height:26, borderRadius:'50%', border:`1px solid ${tema.primaryLight}`, display:'inline-flex', alignItems:'center', justifyContent:'center', color:tema.primaryLight }}><MousePointer2 size={13} strokeWidth={2.2} /></span>
-                        ) : key === 'system' ? (
+                        {key === 'system' ? (
                           <MousePointer2 size={18} strokeWidth={1.8} color={tema.faint} />
                         ) : (
                           <MousePointer2 size={18} strokeWidth={2.2} color={tema.primaryLight} />
@@ -1849,6 +1752,7 @@ export default function Home() {
           return (
             <div 
               key={i} 
+              data-gun-index={i}
               className={`fade-in day-column ${isDragOver || kopyaDrag ? 'drag-over' : ''}`} 
               onClickCapture={(e) => {
                 if (!kopyaDrag) return
@@ -1856,9 +1760,6 @@ export default function Home() {
                 e.stopPropagation()
                 gorevCogalt(i)
               }}
-              onDragOver={(e) => handleDragOver(e, i)}
-              onDragLeave={handleDragLeave}
-              onDrop={() => handleDrop(i)}
               style={{ display:'flex', flexDirection:'column', gap:6, animationDelay:`${i * 0.05}s`, animationFillMode:'both', minWidth: isMobile ? '120px' : 'auto', padding: isDragOver || kopyaDrag ? '8px 4px' : '0', cursor: kopyaDrag ? 'copy' : 'default' }}
             >
               {/* Gün başlığı */}
@@ -1885,10 +1786,13 @@ export default function Home() {
                   <div
                     key={g.id}
                     className={`gorev-card ${isDragging ? 'dragging' : ''}`}
-                    draggable={!g.tamam}
-                    onDragStart={(e) => handleDragStart(e, g)}
-                    onDrag={handleDragMove}
-                    onDragEnd={handleDragEnd}
+                    onPointerDown={(e) => handlePointerDragStart(e, g)}
+                    onClickCapture={(e) => {
+                      if (!dragClickEngelleRef.current) return
+                      e.preventDefault()
+                      e.stopPropagation()
+                      dragClickEngelleRef.current = false
+                    }}
                     style={{ padding:'10px 8px 9px', border:`1px solid ${tema.border}`, borderRadius:10, background: g.tamam ? tema.cardSoft : tema.card, opacity: g.tamam?0.5:(isDragging?0.5:1), position:'relative', overflow:'hidden', cursor: g.tamam ? 'default' : 'grab' }}
                   >
                     <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:renk, borderRadius:'3px 0 0 3px' }} />
