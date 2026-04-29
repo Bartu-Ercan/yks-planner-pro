@@ -1158,6 +1158,7 @@ export default function Home() {
     const target = e.target as HTMLElement
     if (target.closest('button, input, select, textarea')) return
     e.currentTarget.setPointerCapture(e.pointerId)
+    setDragSelectionLock(true)
     pointerDragRef.current = { task: gorev, startX: e.clientX, startY: e.clientY, active: false, pointerId: e.pointerId }
     updatePointerKonum(e.clientX, e.clientY)
   }
@@ -1170,7 +1171,6 @@ export default function Home() {
     const mesafe = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY)
     if (!drag.active && mesafe > 5) {
       drag.active = true
-      setDragSelectionLock(true)
       setKopyaDrag(null)
       setDraggingTask(drag.task)
     }
@@ -1186,7 +1186,10 @@ export default function Home() {
     if (!drag || drag.pointerId !== e.pointerId) return
 
     pointerDragRef.current = null
-    if (!drag.active) return
+    if (!drag.active) {
+      setDragSelectionLock(false)
+      return
+    }
 
     e.preventDefault()
     engelleSiradakiClick()
