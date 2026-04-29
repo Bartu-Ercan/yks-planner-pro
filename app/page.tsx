@@ -570,6 +570,7 @@ export default function Home() {
   const pointerDragRef = useRef<{ task: Gorev; startX: number; startY: number; active: boolean; pointerId: number } | null>(null)
   const dragClickEngelleRef = useRef(false)
   const previousUserSelectRef = useRef<string | null>(null)
+  const previousHtmlUserSelectRef = useRef<string | null>(null)
 
   const seciliTema = TEMALAR[aktifTema]
   const tema = arkaPlanStili === 'balanced' ? getDengeliTema(seciliTema) : seciliTema
@@ -645,15 +646,21 @@ export default function Home() {
     if (locked) {
       if (previousUserSelectRef.current === null) {
         previousUserSelectRef.current = document.body.style.userSelect
+        previousHtmlUserSelectRef.current = document.documentElement.style.userSelect
       }
+      document.documentElement.classList.add('task-drag-lock')
       document.body.style.userSelect = 'none'
+      document.documentElement.style.userSelect = 'none'
       document.getSelection()?.removeAllRanges()
       return
     }
 
     if (previousUserSelectRef.current !== null) {
+      document.documentElement.classList.remove('task-drag-lock')
       document.body.style.userSelect = previousUserSelectRef.current
+      document.documentElement.style.userSelect = previousHtmlUserSelectRef.current ?? ''
       previousUserSelectRef.current = null
+      previousHtmlUserSelectRef.current = null
     }
   }, [])
 
@@ -723,6 +730,31 @@ export default function Home() {
   useEffect(() => {
     return () => setDragSelectionLock(false)
   }, [setDragSelectionLock])
+
+  useEffect(() => {
+    const selectionKilitli = () => previousUserSelectRef.current !== null
+
+    const preventSelection = (event: Event) => {
+      if (!selectionKilitli()) return
+      event.preventDefault()
+      document.getSelection()?.removeAllRanges()
+    }
+
+    const clearSelection = () => {
+      if (!selectionKilitli()) return
+      document.getSelection()?.removeAllRanges()
+    }
+
+    document.addEventListener('selectstart', preventSelection, true)
+    document.addEventListener('dragstart', preventSelection, true)
+    document.addEventListener('selectionchange', clearSelection)
+
+    return () => {
+      document.removeEventListener('selectstart', preventSelection, true)
+      document.removeEventListener('dragstart', preventSelection, true)
+      document.removeEventListener('selectionchange', clearSelection)
+    }
+  }, [])
 
   useEffect(() => {
     const pointerQuery = window.matchMedia('(pointer: coarse)')
@@ -1257,9 +1289,11 @@ export default function Home() {
         .btn-hover:hover { transform: translateY(-1px); box-shadow: ${tema.hoverShadow}; border-color: ${tema.hoverBorder} !important; }
         .btn-hover:active { transform: translateY(0); }
         .gorev-card { transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease, background 0.18s ease, opacity 0.18s ease; backdrop-filter: blur(8px); }
-        .gorev-card:hover { transform: translateY(-2px); box-shadow: ${tema.hoverShadow}; border-color: ${tema.hoverBorder} !important; }
+        .gorev-card:hover { transform: translateY(-1px); box-shadow: ${tema.mode === 'dark' ? '0 12px 28px rgba(0,0,0,0.28)' : '0 10px 22px rgba(15,23,42,0.10)'}; border-color: ${tema.mode === 'dark' ? 'rgba(148,163,184,0.18)' : 'rgba(15,23,42,0.14)'} !important; }
         .gorev-card.dragging { opacity: 0.5; transform: rotate(2deg) scale(0.98); cursor: grabbing; }
         .gorev-card, .gorev-card * { user-select: none; -webkit-user-select: none; }
+        .task-drag-lock, .task-drag-lock * { user-select: none !important; -webkit-user-select: none !important; }
+        .task-drag-lock ::selection { background: transparent; }
         .task-action { transition: color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease; }
         .task-action:hover { transform: translateY(-1px); }
         .task-action-copy:hover { color: ${tema.primaryLight} !important; background: ${tema.primary}18 !important; box-shadow: inset 0 0 0 1px ${tema.primary}40; }
