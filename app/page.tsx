@@ -569,6 +569,7 @@ export default function Home() {
   const [cursorKapali, setCursorKapali] = useState(false)
   const pointerDragRef = useRef<{ task: Gorev; startX: number; startY: number; active: boolean; pointerId: number } | null>(null)
   const dragClickEngelleRef = useRef(false)
+  const previousUserSelectRef = useRef<string | null>(null)
 
   const seciliTema = TEMALAR[aktifTema]
   const tema = arkaPlanStili === 'balanced' ? getDengeliTema(seciliTema) : seciliTema
@@ -640,6 +641,29 @@ export default function Home() {
     setCursorHazir(true)
   }, [])
 
+  const setDragSelectionLock = useCallback((locked: boolean) => {
+    if (locked) {
+      if (previousUserSelectRef.current === null) {
+        previousUserSelectRef.current = document.body.style.userSelect
+      }
+      document.body.style.userSelect = 'none'
+      document.getSelection()?.removeAllRanges()
+      return
+    }
+
+    if (previousUserSelectRef.current !== null) {
+      document.body.style.userSelect = previousUserSelectRef.current
+      previousUserSelectRef.current = null
+    }
+  }, [])
+
+  const engelleSiradakiClick = () => {
+    dragClickEngelleRef.current = true
+    window.setTimeout(() => {
+      dragClickEngelleRef.current = false
+    }, 0)
+  }
+
   const getYarinIndex = () => {
     const yarin = new Date()
     yarin.setDate(yarin.getDate() + 1)
@@ -695,6 +719,10 @@ export default function Home() {
     if (!tercihlerYuklendi) return
     localStorage.setItem('yks-bg-style', arkaPlanStili)
   }, [arkaPlanStili, tercihlerYuklendi])
+
+  useEffect(() => {
+    return () => setDragSelectionLock(false)
+  }, [setDragSelectionLock])
 
   useEffect(() => {
     const pointerQuery = window.matchMedia('(pointer: coarse)')
@@ -1142,7 +1170,7 @@ export default function Home() {
     const mesafe = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY)
     if (!drag.active && mesafe > 5) {
       drag.active = true
-      dragClickEngelleRef.current = true
+      setDragSelectionLock(true)
       setKopyaDrag(null)
       setDraggingTask(drag.task)
     }
@@ -1161,7 +1189,8 @@ export default function Home() {
     if (!drag.active) return
 
     e.preventDefault()
-    dragClickEngelleRef.current = true
+    engelleSiradakiClick()
+    setDragSelectionLock(false)
     const targetGun = getPointerGunIndex(e.clientX, e.clientY)
     if (targetGun === null) {
       setDraggingTask(null)
@@ -1173,6 +1202,7 @@ export default function Home() {
 
   const handlePointerDragCancel = () => {
     pointerDragRef.current = null
+    setDragSelectionLock(false)
     setDraggingTask(null)
     setDragOverDay(null)
   }
@@ -1226,6 +1256,7 @@ export default function Home() {
         .gorev-card { transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease, background 0.18s ease, opacity 0.18s ease; backdrop-filter: blur(8px); }
         .gorev-card:hover { transform: translateY(-2px); box-shadow: ${tema.hoverShadow}; border-color: ${tema.hoverBorder} !important; }
         .gorev-card.dragging { opacity: 0.5; transform: rotate(2deg) scale(0.98); cursor: grabbing; }
+        .gorev-card, .gorev-card * { user-select: none; -webkit-user-select: none; }
         .task-action { transition: color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease; }
         .task-action:hover { transform: translateY(-1px); }
         .task-action-copy:hover { color: ${tema.primaryLight} !important; background: ${tema.primary}18 !important; box-shadow: inset 0 0 0 1px ${tema.primary}40; }
