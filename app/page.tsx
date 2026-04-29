@@ -1101,14 +1101,33 @@ export default function Home() {
     setSeciliGunler(gs => gs.includes(i) ? gs.filter(x => x !== i) : [...gs, i])
   }
 
+  const getBosDragGorseli = () => {
+    const existing = document.getElementById('yks-empty-drag-image')
+    if (existing) return existing
+
+    const element = document.createElement('div')
+    element.id = 'yks-empty-drag-image'
+    Object.assign(element.style, {
+      position: 'fixed',
+      left: '-100px',
+      top: '-100px',
+      width: '1px',
+      height: '1px',
+      opacity: '0',
+      pointerEvents: 'none'
+    })
+    document.body.appendChild(element)
+    return element
+  }
+
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, gorev: Gorev) => {
     setKopyaDrag(null)
     setDraggingTask(gorev)
     updatePointerKonum(e.clientX, e.clientY)
     e.dataTransfer.effectAllowed = 'move'
-    const img = new Image()
-    img.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
-    e.dataTransfer.setDragImage(img, 0, 0)
+    if (customCursorAktif) {
+      e.dataTransfer.setDragImage(getBosDragGorseli(), 0, 0)
+    }
   }
 
   const handleDragMove = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1333,7 +1352,7 @@ export default function Home() {
       {customCursorAktif && cursorHazir && (
         <div
           className={`custom-cursor cursor-${aktifCursor} ${cursorMode}`}
-          style={{ left: mouseKonum.x, top: mouseKonum.y, opacity: kopyaDrag ? 0.78 : 1 }}
+          style={{ left: mouseKonum.x, top: mouseKonum.y, opacity: kopyaDrag || draggingTask ? 0.78 : 1 }}
           aria-hidden="true"
         >
           {aktifCursor === 'dot' ? null : aktifCursor === 'focus' ? (
@@ -1343,6 +1362,17 @@ export default function Home() {
           ) : (
             <MousePointer2 size={13} strokeWidth={2.2} />
           )}
+        </div>
+      )}
+
+      {customCursorAktif && cursorHazir && draggingTask && !kopyaDrag && (
+        <div style={{ position:'fixed', left:mouseKonum.x, top:mouseKonum.y, transform:'translate(-50%, -50%)', zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:tema.shadow, pointerEvents:'none', opacity:0.92 }}>
+          <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:getDersRengi(draggingTask.ders, tema.mode), borderRadius:'3px 0 0 3px' }} />
+          <div style={{ paddingLeft:10 }}>
+            <p style={{ margin:'0 0 2px', fontSize:10, color:getDersRengi(draggingTask.ders, tema.mode), fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{draggingTask.ders}</p>
+            <p style={{ margin:'0 0 6px', fontSize:11, color:tema.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.4, fontWeight:500 }}>{draggingTask.konu}</p>
+            <span style={{ fontSize:10, color:tema.faint, fontWeight:500 }}>taşı</span>
+          </div>
         </div>
       )}
 
