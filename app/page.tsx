@@ -29,7 +29,7 @@ import {
   X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { KAYNAK_DERSLER, KAYNAK_KATALOGU, KAYNAK_YAYINEVLERI, type KaynakKatalogItem, type SinavTuru } from '@/lib/kaynak-katalogu'
+import { KAYNAK_DERS_TUMU, KAYNAK_DERSLER, KAYNAK_KATALOGU, KAYNAK_YAYINEVLERI, kaynakSirala, type KaynakKatalogItem, type SinavTuru } from '@/lib/kaynak-katalogu'
 import { PALETLER, PALET_SIRASI, TEMALAR as FLAT_TEMALAR, normalizeTemaKey as normalizeFlatTemaKey, type PaletKey, type TemaMode } from '@/lib/tema-paletleri'
 import type { User } from '@supabase/supabase-js'
 
@@ -128,6 +128,34 @@ const CURSORLAR: Record<CursorKey, CursorSecenegi> = {
     preview: 'Mac imleci kullan'
   },
 }
+
+const TUTORIAL_ADIMLARI = [
+  {
+    target: 'tema-toggle',
+    title: 'Görünümü hızlı değiştir',
+    desc: 'Light ve dark görünüm arasında tek tuşla geçebilirsin. Seçtiğin paletin karşı modu korunur.',
+  },
+  {
+    target: 'kaynaklar',
+    title: 'Kaynaklarını seç',
+    desc: 'Elindeki kitapları buradan işaretle. Görev eklerken sadece ilgili dersin kaynakları önerilir.',
+  },
+  {
+    target: 'notlar',
+    title: 'Not arşivin burada',
+    desc: 'Günlük görünümde aldığın tüm notlar kronolojik olarak burada toplanır.',
+  },
+  {
+    target: 'gunluk',
+    title: 'Güne odaklan',
+    desc: 'Gün başlığına tıklayınca o günün görevleri, notları ve hazırlık alanı ayrı bir odak panelinde açılır.',
+  },
+  {
+    target: 'gorev-ekle',
+    title: 'Görev eklemeye başla',
+    desc: 'Artı alanından hızlıca görev oluşturabilir, ders ve kaynak bağlayabilirsin.',
+  },
+]
 
 const normalizeTemaKey = (key: string | null) => normalizeFlatTemaKey(key)
 const normalizeFontKey = (key: string | null): FontKey =>
@@ -232,10 +260,14 @@ export default function Home() {
   const [notlarAcik, setNotlarAcik] = useState(false)
   const [notInput, setNotInput] = useState('')
   const [kaynaklarAcik, setKaynaklarAcik] = useState(false)
+  const [misafirModu, setMisafirModu] = useState(false)
+  const [setupAcik, setSetupAcik] = useState(false)
+  const [setupAdim, setSetupAdim] = useState(0)
   const [onboardingAcik, setOnboardingAcik] = useState(false)
   const [onboardingAdim, setOnboardingAdim] = useState(0)
+  const [tutorialRect, setTutorialRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
   const [aktifKaynakSinav, setAktifKaynakSinav] = useState<SinavTuru>('TYT')
-  const [aktifKaynakDers, setAktifKaynakDers] = useState('TYT Mat')
+  const [aktifKaynakDers, setAktifKaynakDers] = useState(KAYNAK_DERS_TUMU)
   const [aktifKaynakYayinevi, setAktifKaynakYayinevi] = useState('Tümü')
   const [kullaniciKaynakIds, setKullaniciKaynakIds] = useState<string[]>([])
   const [sonKaynakSecimi, setSonKaynakSecimi] = useState<Record<string, string>>({})
@@ -410,9 +442,8 @@ export default function Home() {
   }
 
   const kaynakSinavDegistir = (sinav: SinavTuru) => {
-    const dersler = KAYNAK_DERSLER.filter(ders => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === sinav && kaynak.ders === ders))
     setAktifKaynakSinav(sinav)
-    setAktifKaynakDers(dersler[0] || 'TYT Mat')
+    setAktifKaynakDers(KAYNAK_DERS_TUMU)
     setAktifKaynakYayinevi('Tümü')
   }
 
@@ -445,7 +476,8 @@ export default function Home() {
     if (!currentUser) {
       setKullaniciKaynakIds(parseJson<string[]>(localStorage.getItem('yks-kullanici-kaynaklari'), []))
       setSonKaynakSecimi(parseJson<Record<string, string>>(localStorage.getItem('yks-son-kaynak-secimi'), {}))
-      setOnboardingAcik(localStorage.getItem('yks-onboarding-tamam') !== '1')
+      setSetupAcik(false)
+      setOnboardingAcik(false)
       return
     }
 
@@ -470,18 +502,39 @@ export default function Home() {
     if (tercihError) {
       console.warn('Kullanıcı tercihleri yüklenemedi:', tercihError.message)
       setSonKaynakSecimi(parseJson<Record<string, string>>(localStorage.getItem('yks-son-kaynak-secimi'), {}))
-      setOnboardingAcik(localStorage.getItem('yks-onboarding-tamam') !== '1')
+      setSetupAcik(localStorage.getItem('yks-onboarding-tamam') !== '1')
+      setOnboardingAcik(false)
       return
     }
 
     setSonKaynakSecimi((tercihData?.son_kaynak_secimi as Record<string, string> | null) || {})
-    setOnboardingAcik(!(tercihData?.onboarding_tamamlandi))
+    setSetupAcik(!(tercihData?.onboarding_tamamlandi))
+    setOnboardingAcik(false)
   }
 
   const onboardingKapat = async () => {
     setOnboardingAcik(false)
     localStorage.setItem('yks-onboarding-tamam', '1')
     await syncUserKaynakTercihleri(true)
+  }
+
+  const tutorialBaslat = () => {
+    setOnboardingAdim(0)
+    setOnboardingAcik(true)
+  }
+
+  const setupTamamla = async () => {
+    setSetupAcik(false)
+    tutorialBaslat()
+    await syncUserKaynakTercihleri(false)
+  }
+
+  const misafirGir = async () => {
+    setMisafirModu(true)
+    await loadKaynakTercihleri(null)
+    loadGorevler(null)
+    loadGunlukNotlar(null)
+    tutorialBaslat()
   }
 
   const kaynakSecimiDegistir = async (kaynakId: string) => {
@@ -620,6 +673,40 @@ export default function Home() {
   }, [updatePointerKonum])
 
   useEffect(() => {
+    let frame = 0
+
+    if (!onboardingAcik) {
+      frame = window.requestAnimationFrame(() => setTutorialRect(null))
+      return () => window.cancelAnimationFrame(frame)
+    }
+
+    const updateTutorialRect = () => {
+      const step = TUTORIAL_ADIMLARI[onboardingAdim]
+      const target = step ? document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`) : null
+      if (!target) {
+        setTutorialRect(null)
+        return
+      }
+      const rect = target.getBoundingClientRect()
+      setTutorialRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
+    }
+
+    const scheduleTutorialRect = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(updateTutorialRect)
+    }
+
+    scheduleTutorialRect()
+    window.addEventListener('resize', scheduleTutorialRect)
+    window.addEventListener('scroll', scheduleTutorialRect, true)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('resize', scheduleTutorialRect)
+      window.removeEventListener('scroll', scheduleTutorialRect, true)
+    }
+  }, [onboardingAcik, onboardingAdim, gunOffset, isMobile])
+
+  useEffect(() => {
     if (!kopyaDrag) return
 
     const handleMouseMove = (event: MouseEvent) => {
@@ -683,11 +770,12 @@ export default function Home() {
     if (local.length === 0 || guestMigrate) return
 
     setGuestMigrate(true)
-    const toMigrate = local.map((g: Gorev) => ({
-      ...g,
-      user_id: currentUser.id,
-      id: undefined // Let Supabase generate new IDs
-    }))
+    const toMigrate = local.map((g: Gorev) => {
+      const payload: Partial<Gorev> = { ...g, user_id: currentUser.id }
+      delete payload.id
+      if (!payload.kaynak_id) delete payload.kaynak_id
+      return payload
+    })
 
     if (toMigrate.length > 0) {
       await supabase.from('gorevler').insert(toMigrate)
@@ -704,6 +792,7 @@ export default function Home() {
     // Check auth state
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user)
+      if (user) setMisafirModu(false)
       loadGorevler(user)
       loadGunlukNotlar(user)
       loadKaynakTercihleri(user)
@@ -713,6 +802,7 @@ export default function Home() {
       const u = session?.user ?? null
       setUser(u)
       if (u) {
+        setMisafirModu(false)
         loadGorevler(u)
         loadGunlukNotlar(u)
         loadKaynakTercihleri(u)
@@ -764,6 +854,9 @@ export default function Home() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setGuestMigrate(false)
+    setMisafirModu(false)
+    setSetupAcik(false)
+    setOnboardingAcik(false)
     loadGorevler(null)
   }
 
@@ -775,6 +868,20 @@ export default function Home() {
 
   const saveGuestNotes = (notlar: GunlukNot[]) => {
     localStorage.setItem('yks-gunluk-notlar', JSON.stringify(notlar))
+  }
+
+  const kaynakKolonuEksikMi = (error: { message?: string } | null) =>
+    Boolean(error?.message?.toLocaleLowerCase('tr').includes('kaynak_id'))
+
+  const gorevInsert = async (payload: Omit<Gorev, 'id' | 'created_at'>) => {
+    const result = await supabase.from('gorevler').insert(payload).select().single()
+    if (!result.error || !payload.kaynak_id || !kaynakKolonuEksikMi(result.error)) return result
+
+    const payloadWithoutKaynak: Partial<Gorev> = { ...payload }
+    delete payloadWithoutKaynak.kaynak_id
+    const retry = await supabase.from('gorevler').insert(payloadWithoutKaynak).select().single()
+    if (!retry.error) bildir('Görev eklendi. Kaynak bağlantısı için Supabase migration onayı gerekiyor.')
+    return retry
   }
 
   const gunlukNotEkle = async (tarih: string) => {
@@ -828,13 +935,13 @@ export default function Home() {
     const yeniGorev: Omit<Gorev, 'id' | 'created_at'> = {
       ders: formDers,
       konu: formKonu.trim(),
-      kaynak_id: formKaynakId || null,
       gun: hedefGun.gun,
       hafta: hedefGun.hafta,
       tamam: false,
       gercek_sure: 0,
       ...(user ? { user_id: user.id } : {})
     }
+    if (formKaynakId) yeniGorev.kaynak_id = formKaynakId
 
     if (!user) {
       const yeni: Gorev = { ...yeniGorev, id: createGuestId(), created_at: new Date().toISOString() }
@@ -842,7 +949,7 @@ export default function Home() {
       setGorevler(updated)
       saveGuest(updated)
     } else {
-      const { data, error } = await supabase.from('gorevler').insert(yeniGorev).select().single()
+      const { data, error } = await gorevInsert(yeniGorev)
       if (error) {
         console.error('Supabase insert error:', error)
         alert('Görev eklenemedi: ' + error.message)
@@ -869,7 +976,6 @@ export default function Home() {
         id: `${Date.now()}-${i}-${hedef.hafta}-${hedef.gun}`,
         ders: topluDers,
         konu: topluKonu.trim(),
-        kaynak_id: null,
         gun: hedef.gun,
         hafta: hedef.hafta,
         tamam: false,
@@ -884,7 +990,6 @@ export default function Home() {
       const toInsert = hedefGunler.map(hedef => ({
         ders: topluDers,
         konu: topluKonu.trim(),
-        kaynak_id: null,
         gun: hedef.gun,
         hafta: hedef.hafta,
         tamam: false,
@@ -912,13 +1017,13 @@ export default function Home() {
     const yeniGorev: Omit<Gorev, 'id' | 'created_at'> = {
       ders: kopyaDrag.ders,
       konu: kopyaDrag.konu,
-      kaynak_id: kopyaDrag.kaynak_id || null,
       gun: hedefGun.gun,
       hafta: hedefGun.hafta,
       tamam: false,
       gercek_sure: 0,
       ...(user ? { user_id: user.id } : {})
     }
+    if (kopyaDrag.kaynak_id) yeniGorev.kaynak_id = kopyaDrag.kaynak_id
 
     if (!user) {
       const yeni: Gorev = { ...yeniGorev, id: createGuestId(), created_at: new Date().toISOString() }
@@ -926,7 +1031,7 @@ export default function Home() {
       setGorevler(updated)
       saveGuest(updated)
     } else {
-      const { data, error } = await supabase.from('gorevler').insert(yeniGorev).select().single()
+      const { data, error } = await gorevInsert(yeniGorev)
       if (error) {
         console.error('Görev çoğaltma hatası:', error)
         alert('Görev çoğaltılamadı: ' + error.message)
@@ -1031,7 +1136,9 @@ export default function Home() {
   const detayKaydet = async () => {
     if (!detayModal || !editKonu.trim()) return
 
-    const updatedData = { konu: editKonu.trim(), ders: editDers, kaynak_id: editDers === detayModal.ders ? detayModal.kaynak_id || null : null }
+    const updatedData: { konu: string; ders: string; kaynak_id?: string | null } = { konu: editKonu.trim(), ders: editDers }
+    if (editDers === detayModal.ders && detayModal.kaynak_id) updatedData.kaynak_id = detayModal.kaynak_id
+    if (editDers !== detayModal.ders && detayModal.kaynak_id) updatedData.kaynak_id = null
 
     if (!user) {
       const updated = gorevler.map(g =>
@@ -1163,6 +1270,43 @@ export default function Home() {
     )
   }
 
+  if (!user && !misafirModu) {
+    return (
+      <div className={customCursorAktif ? 'custom-cursor-root' : undefined} style={{ minHeight:'100vh', background:sayfaArkaPlani, color:tema.text, fontFamily:font.family, display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? '1rem' : '2rem' }}>
+        <div style={{ width:'100%', maxWidth:430, background:tema.card, border:`1px solid ${tema.border}`, borderRadius:20, boxShadow:tema.shadow, padding:isMobile ? '26px 20px' : '34px 36px' }}>
+          <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase', fontWeight:800 }}>YKS Planner Pro</p>
+          <h1 style={{ margin:'8px 0 8px', fontSize:isMobile ? 24 : 28, color:tema.textStrong, fontWeight:800, letterSpacing:0 }}>Planına giriş yap</h1>
+          <p style={{ margin:'0 0 22px', fontSize:13, color:tema.muted, lineHeight:1.6 }}>Görevlerini, kaynaklarını ve notlarını kaybetmemek için hesapla devam et. Sadece bakmak istersen misafir olarak girebilirsin.</p>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
+            {(['login', 'register'] as const).map(mode => (
+              <button key={mode} onClick={() => { setAuthMode(mode); setAuthError('') }} className="btn-hover" style={{ padding:'10px 0', border:'none', borderRadius:8, background:authMode === mode ? tema.primary : 'transparent', color:authMode === mode ? tema.onPrimary : tema.muted, cursor:'pointer', fontSize:12, fontWeight:700 }}>
+                {mode === 'login' ? 'Giriş' : 'Kayıt'}
+              </button>
+            ))}
+          </div>
+
+          {authError && (
+            <div style={{ marginBottom:14, padding:'10px 12px', background:'#7f1d1d30', border:'1px solid #7f1d1d', borderRadius:10, fontSize:12, color:'#fca5a5' }}>
+              {authError}
+            </div>
+          )}
+
+          <input value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="email" type="email" style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:14, padding:'13px 14px', outline:'none', marginBottom:10, boxSizing:'border-box' }} />
+          <input value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="şifre (min 6 karakter)" type="password" onKeyDown={e => { if(e.key==='Enter') handleAuth(); }} style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:14, padding:'13px 14px', outline:'none', boxSizing:'border-box' }} />
+
+          <button onClick={handleAuth} disabled={authLoading} className="btn-hover" style={{ width:'100%', marginTop:14, padding:'14px 0', background:tema.primary, border:'none', borderRadius:12, color:tema.onPrimary, fontWeight:800, fontSize:14, cursor: authLoading ? 'not-allowed' : 'pointer', opacity: authLoading ? 0.6 : 1, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+            {authMode === 'login' ? <LogIn {...iconProps} /> : <Plus {...iconProps} />}{authLoading ? 'bekle...' : authMode === 'login' ? 'giriş yap' : 'kayıt ol'}
+          </button>
+
+          <button onClick={misafirGir} className="btn-hover" style={{ width:'100%', marginTop:10, padding:'13px 0', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.muted, fontWeight:700, fontSize:13, cursor:'pointer' }}>
+            misafir olarak bak
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const aktifGorevler = gorevler.filter(g => gorunenGunler.some(gun => gun.hafta === g.hafta && gun.gun === g.gun))
   const toplamTamam = aktifGorevler.filter(g => g.tamam).length
   const yuzde = aktifGorevler.length ? Math.round((toplamTamam / aktifGorevler.length) * 100) : 0
@@ -1191,15 +1335,15 @@ export default function Home() {
   const seciliGunYuzde = seciliGunGorevleri.length ? Math.round((seciliGunTamam / seciliGunGorevleri.length) * 100) : 0
   const seciliGunSure = seciliGunGorevleri.filter(g => g.tamam).reduce((toplam, g) => toplam + (g.gercek_sure || 0), 0)
   const seciliGunNotlari = seciliGunTarihId ? gunlukNotlar.filter(n => n.tarih === seciliGunTarihId) : []
-  const kullaniciKaynaklari = KAYNAK_KATALOGU.filter(kaynak => kullaniciKaynakIds.includes(kaynak.id))
-  const formKaynaklari = kullaniciKaynaklari.filter(kaynak => kaynak.ders === formDers)
-  const filtreDersleri = KAYNAK_DERSLER.filter(ders => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === aktifKaynakSinav && kaynak.ders === ders))
+  const kullaniciKaynaklari = KAYNAK_KATALOGU.filter(kaynak => kullaniciKaynakIds.includes(kaynak.id)).sort(kaynakSirala)
+  const formKaynaklari = kullaniciKaynaklari.filter(kaynak => kaynak.ders === formDers).sort(kaynakSirala)
+  const filtreDersleri = [KAYNAK_DERS_TUMU, ...KAYNAK_DERSLER.filter(ders => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === aktifKaynakSinav && kaynak.ders === ders))]
   const filtreYayinevleri = ['Tümü', ...KAYNAK_YAYINEVLERI.filter(yayinevi => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === aktifKaynakSinav && kaynak.yayinevi === yayinevi))]
   const katalogFiltreli = KAYNAK_KATALOGU.filter(kaynak =>
     kaynak.sinav === aktifKaynakSinav &&
-    kaynak.ders === aktifKaynakDers &&
+    (aktifKaynakDers === KAYNAK_DERS_TUMU || kaynak.ders === aktifKaynakDers) &&
     (aktifKaynakYayinevi === 'Tümü' || kaynak.yayinevi === aktifKaynakYayinevi)
-  )
+  ).sort(kaynakSirala)
   const kaynaklariGetir = (tasks: Gorev[]) => {
     const kaynakIds = Array.from(new Set(tasks.map(g => g.kaynak_id).filter(Boolean))) as string[]
     return kaynakIds
@@ -1257,6 +1401,190 @@ export default function Home() {
       )}
     </div>
   )
+
+  if (user && setupAcik) {
+    const setupBasliklari = ['Tema', 'Kaynak', 'Tercih', 'Bitir']
+
+    return (
+      <div style={{ minHeight:'100vh', background:sayfaArkaPlani, color:tema.text, fontFamily:font.family, display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? '1rem' : '2rem' }}>
+        <style>{`
+          .btn-hover { transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.18s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease; }
+          .btn-hover:hover { transform: translateY(-1px); box-shadow: ${tema.hoverShadow}; border-color: ${tema.hoverBorder} !important; }
+          input:focus, select:focus { border-color: ${tema.primary} !important; outline: none; }
+          * { box-sizing: border-box; }
+        `}</style>
+        <div style={{ width:'100%', maxWidth:980, background:tema.card, border:`1px solid ${tema.border}`, borderRadius:20, boxShadow:tema.shadow, overflow:'hidden' }}>
+          <div style={{ padding:isMobile ? '22px 18px' : '28px 32px', borderBottom:`1px solid ${tema.border}`, display:'flex', alignItems:isMobile ? 'flex-start' : 'center', justifyContent:'space-between', gap:16, flexDirection:isMobile ? 'column' : 'row' }}>
+            <div>
+              <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase', fontWeight:800 }}>Kurulum</p>
+              <h1 style={{ margin:'7px 0 0', fontSize:isMobile ? 22 : 26, color:tema.textStrong, fontWeight:800, letterSpacing:0 }}>Başlangıç seçimleri</h1>
+            </div>
+            <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+              {setupBasliklari.map((label, index) => (
+                <span key={label} style={{ padding:'7px 10px', borderRadius:999, border:`1px solid ${index === setupAdim ? tema.primary : tema.border}`, background:index === setupAdim ? `${tema.primary}18` : tema.cardSoft, color:index === setupAdim ? tema.primaryLight : tema.faint, fontSize:10, fontWeight:800 }}>
+                  {index + 1}. {label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ padding:isMobile ? '20px 18px' : '26px 32px', minHeight:isMobile ? 420 : 500 }}>
+            {setupAdim === 0 && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
+                  <div>
+                    <p style={{ margin:'0 0 5px', fontSize:17, color:tema.textStrong, fontWeight:800 }}>Tema paletini seç</p>
+                    <p style={{ margin:0, fontSize:12, color:tema.muted }}>Flat UI paletlerinden biriyle başla. Light/Dark eşini sonra tek tuşla değiştirebilirsin.</p>
+                  </div>
+                  <button onClick={() => setAktifTema(seciliTema.pairedThemeKey)} className="btn-hover" style={{ ...compactActionStyle, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}>
+                    {tema.mode === 'dark' ? <Sun {...iconProps} /> : <Moon {...iconProps} />}{tema.mode === 'dark' ? 'Light' : 'Dark'}
+                  </button>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap:12 }}>
+                  {PALET_SIRASI.map(paletKey => {
+                    const palet = PALETLER[paletKey]
+                    const active = seciliTema.palette === paletKey
+                    return (
+                      <button
+                        key={paletKey}
+                        onClick={() => {
+                          const nextKey = `${paletKey}-${tema.mode}-1`
+                          setAktifTema(FLAT_TEMALAR[nextKey] ? nextKey : `${paletKey}-dark-1`)
+                          setAktifTemaPaleti(paletKey)
+                          setTemaSekmesi(tema.mode)
+                        }}
+                        className="btn-hover"
+                        style={{ padding:14, borderRadius:14, border:active ? `2px solid ${tema.primary}` : `1px solid ${tema.border}`, background:active ? `${tema.primary}10` : tema.cardSoft, color:tema.text, cursor:'pointer', textAlign:'left', position:'relative' }}
+                      >
+                        <p style={{ margin:'0 0 12px', fontSize:14, color:tema.textStrong, fontWeight:800 }}>{palet.name}</p>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:5 }}>
+                          {palet.colors.slice(0, 10).map(color => (
+                            <span key={color.hex} title={color.name} style={{ height:22, borderRadius:6, background:color.hex, border:'1px solid rgba(255,255,255,0.12)' }} />
+                          ))}
+                        </div>
+                        {active && (
+                          <span style={{ position:'absolute', top:10, right:10, width:22, height:22, borderRadius:'50%', background:tema.primary, color:tema.onPrimary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <Check size={13} strokeWidth={2.4} />
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {setupAdim === 1 && (
+              <div>
+                <div style={{ marginBottom:16 }}>
+                  <p style={{ margin:'0 0 5px', fontSize:17, color:tema.textStrong, fontWeight:800 }}>Elindeki kaynakları seç</p>
+                  <p style={{ margin:0, fontSize:12, color:tema.muted }}>Seçimler görev formunda dersine göre önerilir. Kurulumdan sonra Kaynaklarım alanından değiştirilebilir.</p>
+                </div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
+                  {(['TYT', 'AYT'] as SinavTuru[]).map(sinav => (
+                    <button key={sinav} onClick={() => kaynakSinavDegistir(sinav)} className="btn-hover" style={{ ...compactActionStyle, background:aktifKaynakSinav === sinav ? tema.primary : tema.cardSoft, border:`1px solid ${aktifKaynakSinav === sinav ? tema.primary : tema.border}`, color:aktifKaynakSinav === sinav ? tema.onPrimary : tema.muted }}>
+                      {sinav}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'minmax(170px, 210px) minmax(170px, 210px) 1fr', gap:10, alignItems:'center', marginBottom:14 }}>
+                  <select value={aktifKaynakDers} onChange={e => { setAktifKaynakDers(e.target.value); setAktifKaynakYayinevi('Tümü') }} style={{ fontSize:12, padding:'11px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, appearance:'none', WebkitAppearance:'none' }}>
+                    {filtreDersleri.map(ders => <option key={ders}>{ders}</option>)}
+                  </select>
+                  <select value={aktifKaynakYayinevi} onChange={e => setAktifKaynakYayinevi(e.target.value)} style={{ fontSize:12, padding:'11px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, appearance:'none', WebkitAppearance:'none' }}>
+                    {filtreYayinevleri.map(yayinevi => <option key={yayinevi}>{yayinevi}</option>)}
+                  </select>
+                  <p style={{ margin:0, fontSize:11, color:tema.faint, textAlign:isMobile ? 'left' : 'right' }}>{kullaniciKaynakIds.length} kaynak seçili</p>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))', gap:10, maxHeight:isMobile ? 420 : 360, overflowY:'auto', paddingRight:4 }}>
+                  {katalogFiltreli.slice(0, isMobile ? 18 : 36).map(kaynak => {
+                    const selected = kullaniciKaynakIds.includes(kaynak.id)
+                    return (
+                      <button key={kaynak.id} onClick={() => kaynakSecimiDegistir(kaynak.id)} className="btn-hover" style={{ border:`1px solid ${selected ? tema.primary : tema.border}`, borderRadius:12, background:selected ? `${tema.primary}12` : tema.cardSoft, color:tema.text, cursor:'pointer', padding:0, overflow:'hidden', textAlign:'left', position:'relative' }}>
+                        <div style={{ aspectRatio:'3 / 4', background:`url(${kaynak.kapak_url}) center / cover`, borderBottom:`1px solid ${tema.border}` }} />
+                        <div style={{ padding:'8px 8px 9px' }}>
+                          <p style={{ margin:'0 0 4px', fontSize:10, color:tema.textStrong, fontWeight:800, lineHeight:1.3 }}>{kaynak.ad}</p>
+                          <p style={{ margin:0, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</p>
+                        </div>
+                        {selected && (
+                          <span style={{ position:'absolute', top:7, right:7, width:20, height:20, borderRadius:'50%', background:tema.primary, color:tema.onPrimary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <Check size={12} strokeWidth={2.4} />
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {setupAdim === 2 && (
+              <div>
+                <div style={{ marginBottom:16 }}>
+                  <p style={{ margin:'0 0 5px', fontSize:17, color:tema.textStrong, fontWeight:800 }}>Kaynak görünümünü seç</p>
+                  <p style={{ margin:0, fontSize:12, color:tema.muted }}>Günlük hazırlık alanında kitaplar yazı listesi veya kapaklı grid olarak gösterilir.</p>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap:12 }}>
+                  {([
+                    ['text', 'Yazı', 'Sade, hızlı taranan kaynak listesi.', <Type key="type" size={20} strokeWidth={2.1} />],
+                    ['visual', 'Görsel', 'Kapak alanlı kompakt hazırlık grid’i.', <ImageIcon key="image" size={20} strokeWidth={2.1} />],
+                  ] as const).map(([key, name, desc, icon]) => {
+                    const active = kaynakGorunumu === key
+                    return (
+                      <button key={key} onClick={() => setKaynakGorunumu(key)} className="btn-hover" style={{ padding:18, borderRadius:15, border:active ? `2px solid ${tema.primary}` : `1px solid ${tema.border}`, background:active ? `${tema.primary}10` : tema.cardSoft, color:tema.text, cursor:'pointer', textAlign:'left', position:'relative', minHeight:150 }}>
+                        <div style={{ width:42, height:42, borderRadius:12, background:active ? `${tema.primary}20` : tema.card, border:`1px solid ${active ? tema.primary : tema.border}`, color:active ? tema.primaryLight : tema.faint, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:14 }}>
+                          {icon}
+                        </div>
+                        <p style={{ margin:'0 0 7px', fontSize:17, color:tema.textStrong, fontWeight:800 }}>{name}</p>
+                        <p style={{ margin:0, fontSize:12, color:tema.muted, lineHeight:1.5 }}>{desc}</p>
+                        {active && (
+                          <span style={{ position:'absolute', top:12, right:12, width:22, height:22, borderRadius:'50%', background:tema.primary, color:tema.onPrimary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <Check size={13} strokeWidth={2.4} />
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {setupAdim === 3 && (
+              <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '1fr 1fr', gap:14 }}>
+                {[
+                  ['Tema', `${seciliTema.paletteName} / ${tema.mode === 'dark' ? 'Dark' : 'Light'}`],
+                  ['Kaynak', `${kullaniciKaynakIds.length} kitap seçili`],
+                  ['Hazırlık', kaynakGorunumu === 'visual' ? 'Görsel kapak grid’i' : 'Yazı listesi'],
+                  ['Sonraki adım', 'Ana ekranda kısa interaktif tanıtım'],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ padding:'18px 16px', border:`1px solid ${tema.border}`, borderRadius:14, background:tema.cardSoft }}>
+                    <p style={{ margin:'0 0 7px', fontSize:11, color:tema.faint, fontWeight:800, letterSpacing:0.6, textTransform:'uppercase' }}>{label}</p>
+                    <p style={{ margin:0, fontSize:15, color:tema.textStrong, fontWeight:800 }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding:isMobile ? '16px 18px' : '18px 32px', borderTop:`1px solid ${tema.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+            <button onClick={setupTamamla} className="btn-hover" style={{ ...compactActionStyle, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}>
+              atla
+            </button>
+            <div style={{ display:'flex', gap:8 }}>
+              {setupAdim > 0 && (
+                <button onClick={() => setSetupAdim(adim => Math.max(0, adim - 1))} className="btn-hover" style={{ ...compactActionStyle, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}>
+                  geri
+                </button>
+              )}
+              <button onClick={() => setupAdim === 3 ? setupTamamla() : setSetupAdim(adim => Math.min(3, adim + 1))} className="btn-hover" style={{ ...compactActionStyle, background:tema.primary, border:'none', color:tema.onPrimary }}>
+                {setupAdim === 3 ? 'kurulumu bitir' : 'ileri'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -1724,7 +2052,7 @@ export default function Home() {
                 })}
               </div>
               <button
-                onClick={() => { setOnboardingAdim(0); setOnboardingAcik(true); setAyarlarAcik(false) }}
+                onClick={() => { tutorialBaslat(); setAyarlarAcik(false) }}
                 className="btn-hover"
                 style={{ ...compactActionStyle, width:'100%', marginTop:14, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}
               >
@@ -1827,51 +2155,50 @@ export default function Home() {
         </div>
       )}
 
-      {/* BAŞLANGIÇ KURULUMU */}
-      {onboardingAcik && (
-        <div onMouseDown={(e) => closeOnBackdrop(e, onboardingKapat)} className="slide-in" style={{ position:'fixed', inset:0, zIndex:2200, background:tema.overlay, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-          <div style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:20, padding:isMobile ? '24px 20px' : '30px 34px', maxWidth:560, width:'100%', boxShadow:tema.shadow }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:18 }}>
-              <div>
-                <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase', fontWeight:700 }}>Başlangıç</p>
-                <p style={{ margin:'5px 0 0', fontSize:21, color:tema.textStrong, fontWeight:800 }}>YKS Planner Pro kurulumu</p>
-              </div>
-              <button onClick={onboardingKapat} className="btn-hover icon-only" aria-label="atla" title="atla" style={{ ...iconButtonStyle, background:tema.cardSoft }}><X size={16} strokeWidth={2.2} /></button>
-            </div>
+      {/* HEDEFLİ TUTORIAL */}
+      {onboardingAcik && (() => {
+        const adim = TUTORIAL_ADIMLARI[onboardingAdim] || TUTORIAL_ADIMLARI[0]
+        const sonAdim = onboardingAdim >= TUTORIAL_ADIMLARI.length - 1
+        const vw = typeof window === 'undefined' ? 1024 : window.innerWidth
+        const vh = typeof window === 'undefined' ? 768 : window.innerHeight
+        const tooltipWidth = isMobile ? Math.min(vw - 32, 320) : 330
+        const tooltipLeft = tutorialRect
+          ? Math.min(Math.max(tutorialRect.left + tutorialRect.width / 2 - tooltipWidth / 2, 16), vw - tooltipWidth - 16)
+          : Math.max((vw - tooltipWidth) / 2, 16)
+        const tooltipTop = tutorialRect
+          ? Math.min(tutorialRect.top + tutorialRect.height + 16, vh - 230)
+          : Math.max((vh - 220) / 2, 16)
 
-            {[
-              ['Temel kullanım', 'Haftalık ekranda günleri yan yana görürsün. Görevleri sürükleyebilir, tamamlayabilir ve süre girebilirsin.'],
-              ['Günlük görünüm', 'Bir gün başlığına tıklayınca sadece o güne odaklanan panel açılır. Not ve hazırlık burada kalır.'],
-              ['Kaynak seçimi', 'Kaynaklarım alanından elindeki TYT/AYT kitaplarını kapaklı katalogdan seç.'],
-              ['Göreve kaynak bağlama', 'Görev eklerken dersin altındaki kaynak alanı sadece o derse uygun kitapları gösterir.'],
-            ].map(([title, desc], index) => (
-              onboardingAdim === index && (
-                <div key={title} style={{ padding:'18px 18px', border:`1px solid ${tema.border}`, borderRadius:14, background:tema.cardSoft, marginBottom:16 }}>
-                  <p style={{ margin:'0 0 8px', fontSize:16, color:tema.textStrong, fontWeight:800 }}>{title}</p>
-                  <p style={{ margin:0, fontSize:13, color:tema.muted, lineHeight:1.6 }}>{desc}</p>
+        return (
+          <div style={{ position:'fixed', inset:0, zIndex:2200, pointerEvents:'none' }}>
+            <div style={{ position:'absolute', inset:0, background:tema.mode === 'dark' ? 'rgba(0,0,0,0.34)' : 'rgba(15,23,42,0.16)' }} />
+            {tutorialRect && (
+              <>
+                <div style={{ position:'fixed', top:tutorialRect.top - 8, left:tutorialRect.left - 8, width:tutorialRect.width + 16, height:tutorialRect.height + 16, border:`1px solid ${tema.primary}`, borderRadius:14, boxShadow:`0 0 0 9999px ${tema.mode === 'dark' ? 'rgba(0,0,0,0.18)' : 'rgba(15,23,42,0.08)'}, 0 0 0 5px ${tema.primary}18`, pointerEvents:'none' }} />
+                <div style={{ position:'fixed', left:tutorialRect.left + tutorialRect.width / 2, top:tutorialRect.top + tutorialRect.height + 6, width:1, height:10, background:tema.primary, opacity:0.8 }} />
+              </>
+            )}
+            <div className="slide-in" style={{ position:'fixed', left:tooltipLeft, top:tooltipTop, width:tooltipWidth, background:tema.card, border:`1px solid ${tema.border}`, borderRadius:16, padding:'16px 16px 15px', boxShadow:tema.shadow, pointerEvents:'auto' }}>
+              <div style={{ width:34, height:3, borderRadius:99, background:tema.primary, marginBottom:12 }} />
+              <p style={{ margin:'0 0 7px', fontSize:15, color:tema.textStrong, fontWeight:800 }}>{adim.title}</p>
+              <p style={{ margin:0, fontSize:12, color:tema.muted, lineHeight:1.55 }}>{adim.desc}</p>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginTop:15 }}>
+                <div style={{ display:'flex', gap:5 }}>
+                  {TUTORIAL_ADIMLARI.map((_, index) => (
+                    <span key={index} style={{ width:index === onboardingAdim ? 18 : 6, height:6, borderRadius:99, background:index === onboardingAdim ? tema.primary : tema.border, transition:'all 0.18s' }} />
+                  ))}
                 </div>
-              )
-            ))}
-
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
-              <div style={{ display:'flex', gap:6 }}>
-                {[0, 1, 2, 3].map(index => (
-                  <span key={index} style={{ width:index === onboardingAdim ? 18 : 7, height:7, borderRadius:99, background:index === onboardingAdim ? tema.primary : tema.border, transition:'all 0.18s' }} />
-                ))}
-              </div>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
-                <button onClick={onboardingKapat} className="btn-hover" style={{ ...compactActionStyle, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}>atla</button>
-                {onboardingAdim === 2 && (
-                  <button onClick={() => setKaynaklarAcik(true)} className="btn-hover" style={{ ...compactActionStyle, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}><BookOpen {...iconProps} /> kaynak seç</button>
-                )}
-                <button onClick={() => onboardingAdim === 3 ? onboardingKapat() : setOnboardingAdim(adim => adim + 1)} className="btn-hover" style={{ ...compactActionStyle, background:tema.primary, border:'none', color:tema.onPrimary }}>
-                  {onboardingAdim === 3 ? 'bitir' : 'ileri'}
-                </button>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={onboardingKapat} className="btn-hover" style={{ ...compactActionStyle, padding:'7px 11px', background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}>atla</button>
+                  <button onClick={() => sonAdim ? onboardingKapat() : setOnboardingAdim(adimIndex => adimIndex + 1)} className="btn-hover" style={{ ...compactActionStyle, padding:'7px 12px', background:tema.primary, border:'none', color:tema.onPrimary }}>
+                    {sonAdim ? 'bitir' : 'ileri'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* GÜNLÜK ODAK PANELİ */}
       {seciliGun && (
@@ -2016,9 +2343,19 @@ export default function Home() {
 
       {/* Başlık + nav */}
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(160px, 1fr) minmax(320px, auto) minmax(160px, 1fr)', alignItems:'start', marginBottom:'1rem', gap:12 }}>
-        <div style={{ minHeight: isMobile ? 0 : 34 }} />
+        <div style={{ display:'flex', alignItems:'center', justifyContent:isMobile ? 'center' : 'flex-start', gap:8, flexWrap:'wrap', order: isMobile ? 1 : 0 }}>
+          <button data-tour="tema-toggle" onClick={() => setAktifTema(seciliTema.pairedThemeKey)} className="btn-hover" aria-label={tema.mode === 'dark' ? 'light moda geç' : 'dark moda geç'} title={tema.mode === 'dark' ? 'Light moda geç' : 'Dark moda geç'} style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:700 }}>
+            {tema.mode === 'dark' ? <Sun size={12} strokeWidth={2.1} /> : <Moon size={12} strokeWidth={2.1} />} {tema.mode === 'dark' ? 'Light' : 'Dark'}
+          </button>
+          <button data-tour="kaynaklar" onClick={() => setKaynaklarAcik(true)} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:600 }}>
+            <BookOpen size={12} strokeWidth={2.1} /> Kaynaklarım
+          </button>
+          <button data-tour="notlar" onClick={() => setNotlarAcik(true)} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:600 }}>
+            <Archive size={12} strokeWidth={2.1} /> Notlar
+          </button>
+        </div>
 
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:12, order: isMobile ? 1 : 0 }}>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:12, order: isMobile ? 0 : 0 }}>
           <div>
             <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:1.8, textTransform:'uppercase', fontWeight:700 }}>2026 YKS</p>
             <h1 style={{ margin:'4px 0 0', fontSize: isMobile ? 22 : 24, fontWeight:700, color:tema.textStrong, letterSpacing:0 }}>Haftalık Program</h1>
@@ -2038,21 +2375,9 @@ export default function Home() {
           </div>
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, order: isMobile ? 0 : 0 }}>
-          <button onClick={() => setAktifTema(seciliTema.pairedThemeKey)} className="btn-hover" aria-label={tema.mode === 'dark' ? 'light moda geç' : 'dark moda geç'} title={tema.mode === 'dark' ? 'Light moda geç' : 'Dark moda geç'} style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:700 }}>
-            {tema.mode === 'dark' ? <Sun size={12} strokeWidth={2.1} /> : <Moon size={12} strokeWidth={2.1} />} {tema.mode === 'dark' ? 'Light' : 'Dark'}
-          </button>
-          <button onClick={() => setKaynaklarAcik(true)} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:600 }}>
-            <BookOpen size={12} strokeWidth={2.1} /> Kaynaklarım
-          </button>
-          <button onClick={() => setNotlarAcik(true)} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:600 }}>
-            <Archive size={12} strokeWidth={2.1} /> Notlar
-          </button>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:isMobile ? 'center' : 'flex-end', gap:8, order: isMobile ? 2 : 0 }}>
           {user ? (
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span style={{ fontSize:10, color:tema.faint }}>{user.email}</span>
-              <button onClick={handleLogout} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.faint, cursor:'pointer', fontWeight:600 }}><LogOut size={12} strokeWidth={2.1} /> çıkış</button>
-            </div>
+            <button onClick={handleLogout} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.faint, cursor:'pointer', fontWeight:600 }}><LogOut size={12} strokeWidth={2.1} /> çıkış</button>
           ) : (
             <button onClick={() => { setAuthModal(true); setAuthMode('login'); setAuthError(''); }} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.primary, border:'none', borderRadius:7, color:tema.onPrimary, cursor:'pointer', fontWeight:600 }}><LogIn size={12} strokeWidth={2.1} /> giriş yap</button>
           )}
@@ -2188,6 +2513,7 @@ export default function Home() {
                 type="button"
                 onClick={() => setGunlukPanelIndex(i)}
                 className="btn-hover"
+                data-tour={i === 0 ? 'gunluk' : undefined}
                 aria-label={`${gunBilgisi.label} günlük görünümü aç`}
                 style={{ padding:'8px 6px', borderRadius:10, background: isBugun?`linear-gradient(135deg, ${tema.primary}, ${tema.primaryLight})`:tema.card, border: isBugun?'none':`1px solid ${tema.border}`, textAlign:'center', marginBottom:2, cursor:'pointer', width:'100%' }}
               >
@@ -2256,7 +2582,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <button onClick={() => { setEkleGun(i); setFormKonu(''); }} className="btn-hover" aria-label={`${gunBilgisi.label} gününe görev ekle`} style={{ width:'100%', padding:'14px 0', fontSize:20, cursor: kopyaDrag ? 'copy' : 'pointer', border:`2px dashed ${tema.border}`, borderRadius:12, background:'transparent', color:tema.faint, fontWeight:300, display:'flex', alignItems:'center', justifyContent:'center' }}><Plus size={19} strokeWidth={2.1} /></button>
+                <button data-tour={i === 0 ? 'gorev-ekle' : undefined} onClick={() => { setEkleGun(i); setFormKonu(''); }} className="btn-hover" aria-label={`${gunBilgisi.label} gününe görev ekle`} style={{ width:'100%', padding:'14px 0', fontSize:20, cursor: kopyaDrag ? 'copy' : 'pointer', border:`2px dashed ${tema.border}`, borderRadius:12, background:'transparent', color:tema.faint, fontWeight:300, display:'flex', alignItems:'center', justifyContent:'center' }}><Plus size={19} strokeWidth={2.1} /></button>
               )}
             </div>
           )

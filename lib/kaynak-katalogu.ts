@@ -8,6 +8,7 @@ export interface KaynakKatalogItem {
   ad: string
   kapak_url: string
   urun_url: string
+  populerlik: number
 }
 
 const row = (
@@ -17,16 +18,51 @@ const row = (
   yayinevi: string,
   ad: string,
   kapak: string,
-  urun: string
+  urun: string,
+  populerlik = 50
 ): KaynakKatalogItem => ({
   id,
   sinav,
   ders,
   yayinevi,
   ad,
-  kapak_url: `https://www.kitapisler.com/${kapak}`,
-  urun_url: `https://www.kitapisler.com/${urun}`,
+  kapak_url: kapak.startsWith('http') ? kapak : `https://www.kitapisler.com/${kapak}`,
+  urun_url: urun.startsWith('http') ? urun : `https://www.kitapisler.com/${urun}`,
+  populerlik,
 })
+
+export const KAYNAK_DERS_TUMU = 'Tümü'
+
+export const YAYINEVI_ONCELIK = [
+  '3D Yayınları',
+  '345 Yayınları',
+  'Orijinal Yayınları',
+  'Bilgi Sarmal',
+  'Paraf Yayınları',
+  'Çap Yayınları',
+  'Apotemi Yayınları',
+  'Karekök Yayınları',
+  'Palme Yayınları',
+  'Limit Yayınları',
+  'Hız ve Renk Yayınları',
+  'Benim Hocam Yayınları',
+  'KR Akademi',
+  'Yayın Denizi',
+  'Miray Yayınları',
+  'Endemik Yayınları',
+  'Acil Yayınları',
+  'Barış Yayınları',
+]
+
+const yayineviOncelik = (yayinevi: string) => {
+  const index = YAYINEVI_ONCELIK.findIndex(item => yayinevi.toLocaleLowerCase('tr').includes(item.toLocaleLowerCase('tr')))
+  return index === -1 ? 999 : index
+}
+
+export const kaynakSirala = (a: KaynakKatalogItem, b: KaynakKatalogItem) =>
+  (b.populerlik || 0) - (a.populerlik || 0) ||
+  yayineviOncelik(a.yayinevi) - yayineviOncelik(b.yayinevi) ||
+  a.ad.localeCompare(b.ad, 'tr')
 
 export const KAYNAK_KATALOGU: KaynakKatalogItem[] = [
   row('tyt-mat-01', 'TYT', 'TYT Mat', 'Aktif Öğrenme Yayınları', 'Aktif Öğrenme TYT Maarif Prime Matematik Soru Bankası', 'images_buyuk/f89/aktif-ogrenme-tyt-maarif-prime-m_MTA3NDg5MDkzNg==_1.jpg', 'aktif-ogrenme-tyt-maarif-prime-matematik-soru-bankasi_107489.html'),
@@ -98,7 +134,60 @@ export const KAYNAK_KATALOGU: KaynakKatalogItem[] = [
   row('ayt-tarih-04', 'AYT', 'AYT Tarih', 'Madalyon Yayınları', 'Madalyon Yayınları AYT Tarih Soru Bankası', 'images_buyuk/f79/madalyon-yayinlari-ayt-tarih-sor_MTAzMjc5MTA1NQ==_1.jpg', 'madalyon-yayinlari-ayt-tarih-soru-bankasi_103279.html'),
   row('ayt-tarih-05', 'AYT', 'AYT Tarih', 'Benim Hocam Yayınları', 'Benim Hocam Yayınları 2026 AYT Tarih Video Çözümlü Soru Bankası', 'images_buyuk/f11/benim-hocam-yayinlari-2026-ayt-t_MTAyNjExMDEzOA==_1.jpg', 'benim-hocam-yayinlari-2026-ayt-tarih-video-cozumlu-soru-bankasi_102611.html'),
   row('ayt-tarih-06', 'AYT', 'AYT Tarih', 'IQ Yayınları', 'IQ Yayınları AYT Tarih Püf Soru Bankası', 'images_buyuk/f2/iq-yayinlari-ayt-tarih-puf-soru-_MTAyMzAyMjEyMA==_1.jpg', 'iq-yayinlari-ayt-tarih-puf-soru-bankasi_102302.html'),
+
+  row('genis-3d-tyt-paragraf-01', 'TYT', 'TYT Türkçe', '3D Yayınları', '3D Yayınları TYT AYT Paragraf Soru Bankası', 'images_buyuk/f67/3d-yayinlari-tyt-ayt-paragraf-so_MTAyMDY3NDM0Ng==_1.jpg', '3d-yayinlari-tyt-ayt-paragraf-konu-ozetli-soru-bankasi_102067.html', 98),
+  row('genis-3d-tyt-turkce-01', 'TYT', 'TYT Türkçe', '3D Yayınları', '3D Yayınları Ses Yazım Noktalama Konu Özetli Soru Bankası', 'images_buyuk/f64/3d-yayinlari-ses-yazim-noktalama_MTA1NDY0MjIzNA==_1.jpg', '3d-yayinlari-ses-yazim-noktalama-konu-ozetli-soru-bankasi_105464.html', 92),
+  row('genis-3d-ayt-edebiyat-01', 'AYT', 'AYT Edebiyat', '3D Yayınları', '3D Yayınları AYT Edebiyat Video Destekli Defter', 'images_buyuk/f64/3d-yayinlari-ayt-edebiyat-video-_MTA1MjY0MzU1NQ==_1.jpg', '3d-yayinlari-ayt-edebiyat-video-destekli-defter_105264.html', 88),
+  row('genis-3d-ayt-kimya-01', 'AYT', 'AYT Kimya', '3D Yayınları', '3D Yayınları AYT Kimya Video Destekli Defter', 'images_buyuk/f98/3d-yayinlari-ayt-kimya-video-des_OTk1OTgyNjUz_1.jpg', '3d-yayinlari-ayt-kimya-video-destekli-defter_99598.html', 86),
+  row('genis-3d-ayt-tarih-01', 'AYT', 'AYT Tarih', '3D Yayınları', '3D Yayınları AYT Tarih Video Destekli Defter', 'images_buyuk/f63/3d-yayinlari-ayt-tarih-video-des_MTA1MjYzMjMxMg==_1.jpg', '3d-yayinlari-ayt-tarih-video-destekli-defter_105263.html', 82),
+  row('genis-345-tyt-mat-01', 'TYT', 'TYT Mat', '345 Yayınları', '345 Yayınları TYT Matematik Soru Bankası', 'https://placehold.co/320x430/111827/f8fafc?text=345+TYT%0AMatematik', 'https://www.kitapisler.com/YKS-Yuksekogretim-Kurum-Sinavi-1196', 96),
+  row('genis-345-ayt-mat-01', 'AYT', 'AYT Mat', '345 Yayınları', '345 Yayınları AYT Matematik Soru Bankası', 'https://placehold.co/320x430/111827/f8fafc?text=345+AYT%0AMatematik', 'https://www.kitapisler.com/YKS-Yuksekogretim-Kurum-Sinavi-1196', 95),
+  row('genis-345-tyt-fen-01', 'TYT', 'TYT Fen', '345 Yayınları', '345 Yayınları TYT Fen Bilimleri Soru Bankası', 'https://placehold.co/320x430/111827/f8fafc?text=345+TYT%0AFen', 'https://www.kitapisler.com/YKS-Yuksekogretim-Kurum-Sinavi-1196', 84),
+  row('genis-orijinal-ayt-mat-01', 'AYT', 'AYT Mat', 'Orijinal Yayınları', 'Orijinal Yayınları AYT Matematik Referans 12 li Deneme Sınavı', 'images_buyuk/f35/orijinal-yayinlari-ayt-matematik_MTA1OTM1MjE0OQ==_1.jpg', 'orijinal-yayinlari-ayt-matematik-referans-12-li-deneme-sinavi_105935.html', 93),
+  row('genis-orijinal-tyt-mat-01', 'TYT', 'TYT Mat', 'Orijinal Yayınları', 'Orijinal Yayınları TYT Sayılar Denemetre 30 lu Konu Denemesi', 'images_buyuk/f25/orijinal-yayinlari-tyt-sayilar-d_MTA2MDI1MDk1Ng==_1.jpg', 'orijinal-yayinlari-tyt-sayilar-denemetre-30-lu-konu-denemesi_106025.html', 88),
+  row('genis-orijinal-tyt-fen-01', 'TYT', 'TYT Fen', 'Orijinal Yayınları', 'Orijinal Mikro TYT Fizik 30 lu Deneme Sınavı', 'images_buyuk/f4/orijinal-mikro-tyt-fizik-30-lu-d_MTA1OTA0NDA0MA==_1.jpg', 'orijinal-mikro-tyt-fizik-30-lu-deneme-sinavi_105904.html', 82),
+  row('genis-bilgi-tyt-mat-01', 'TYT', 'TYT Mat', 'Bilgi Sarmal', 'Bilgi Sarmal TYT Matematik 49 Günde Video Ders Kitabı', 'images_buyuk/f82/bilgi-sarmal-tyt-matematik-49-gu_MTAyNDgyMDc0Mg==_1.jpg', 'bilgi-sarmal-tyt-matematik-49-gunde-video-ders-kitabi_102482.html', 94),
+  row('genis-bilgi-tyt-fen-01', 'TYT', 'TYT Fen', 'Bilgi Sarmal', 'Bilgi Sarmal TYT Biyoloji 23 Günde Video Ders Kitabı', 'images_buyuk/f83/bilgi-sarmal-tyt-biyoloji-23-gun_MTAyNDgzMTA1Nw==_1.jpg', 'bilgi-sarmal-tyt-biyoloji-23-gunde-video-ders-kitabi_102483.html', 88),
+  row('genis-bilgi-tyt-ayt-geometri-01', 'TYT', 'TYT Mat', 'Bilgi Sarmal', 'Bilgi Sarmal TYT AYT Geometri Soru Bankası', 'images_buyuk/f56/bilgi-sarmal-tyt-ayt-geometri-so_MTAyMzU2NTIwNw==_1.jpg', 'bilgi-sarmal-tyt-ayt-geometri-soru-bankasi_102356.html', 91),
+  row('genis-bilgi-tyt-turkce-01', 'TYT', 'TYT Türkçe', 'Bilgi Sarmal', 'Bilgi Sarmal Paragraf Stratejik Hamlelerle Soru ve Konu Kampı', 'images_buyuk/f59/bilgi-sarmal-paragraf-stratejik-_MTA1MjU5MzI0Mw==_1.jpg', 'bilgi-sarmal-paragraf-stratejik-hamlelerle-soru-ve-konu-kampi_105259.html', 89),
+  row('genis-paraf-tyt-mat-01', 'TYT', 'TYT Mat', 'Paraf Yayınları', 'Paraf Yayınları TYT 30 Günde Hedef 15 Net Matematik Video Ders Kitabı', 'images_buyuk/f29/paraf-yayinlari-tyt-30-gunde-hed_MTA1OTI5MTM0OA==_1.jpg', 'paraf-yayinlari-tyt-30-gunde-hedef-15-net-matematik-video-ders-kitabi_105929.html', 90),
+  row('genis-paraf-ayt-mat-01', 'AYT', 'AYT Mat', 'Paraf Yayınları', 'Paraf Yayınları AYT Matematik Elit Karma 10 Deneme', 'images_buyuk/f80/paraf-yayinlari-ayt-matematik-el_MTA3MjgwNTMwOQ==_1.jpg', 'paraf-yayinlari-ayt-matematik-elit-karma-10-deneme_107280.html', 89),
+  row('genis-paraf-tyt-turkce-01', 'TYT', 'TYT Türkçe', 'Paraf Yayınları', 'Paraf Yayınları TYT IQ Türkçe Video Çözümlü 15 Branş Deneme', 'images_buyuk/f42/paraf-yayinlari-tyt-iq-turkce-vi_MTA2MDQyMjcwMA==_1.jpg', 'paraf-yayinlari-tyt-iq-turkce-video-cozumlu-15-brans-deneme_106042.html', 84),
+  row('genis-cap-tyt-mat-01', 'TYT', 'TYT Mat', 'Çap Yayınları', 'Çap Yayınları TYT MSÜ Matematik Ders Platosu Son 5 Yıl İkiz Çıkmış Sorular', 'images_buyuk/f73/cap-yayinlari-tyt-msu-matematik-_MTA2OTczNTk0Mw==_1.jpg', 'cap-yayinlari-tyt-msu-matematik-ders-platosu-son-5-yil-ikiz-cikmis-sorular_106973.html', 87),
+  row('genis-cap-tyt-turkce-01', 'TYT', 'TYT Türkçe', 'Çap Yayınları', 'Çap Yayınları TYT MSÜ Türkçe Ders Platosu Son 5 Yıl İkiz Çıkmış Sorular', 'images_buyuk/f16/cap-yayinlari-tyt-msu-turkce-der_MTA2OTE2NTcwNg==_1.jpg', 'cap-yayinlari-tyt-msu-turkce-ders-platosu-son-5-yil-ikiz-cikmis-sorular_106916.html', 83),
+  row('genis-apotemi-tyt-mat-01', 'TYT', 'TYT Mat', 'Apotemi Yayınları', 'Apotemi Yayınları TYT Matematik Soru Bankası', 'images_buyuk/f36/apotemi-yayinlari-tyt-matematik-_MTA1NjM2NTUwMg==_1.jpg', 'apotemi-yayinlari-tyt-matematik-soru-bankasi_105636.html', 92),
+  row('genis-apotemi-tyt-fen-01', 'TYT', 'TYT Fen', 'Apotemi Yayınları', 'Apotemi Yayınları TYT Fen Bilimleri 25 Deneme', 'images_buyuk/f61/apotemi-yayinlari-tyt-fen-biliml_MTA1OTYxMTAxOQ==_1.jpg', 'apotemi-yayinlari-tyt-fen-bilimleri-25-deneme_105961.html', 85),
+  row('genis-apotemi-ayt-mat-01', 'AYT', 'AYT Mat', 'Apotemi Yayınları', 'Apotemi Yayınları AYT Matematik 15 Çözümlü Deneme', 'images_buyuk/f59/apotemi-yayinlari-ayt-matematik-_MTAxNTU5Mzc1Mw==_1.jpg', 'apotemi-yayinlari-ayt-matematik-15-cozumlu-deneme_101559.html', 86),
+  row('genis-karekok-ayt-mat-01', 'AYT', 'AYT Mat', 'Karekök Yayınları', 'Karekök Yayınları AYT Progresif Matematik Soru Bankası', 'images_buyuk/f41/karekok-yayinlari-ayt-progresif-_MTAxNDQxNTkwNA==_1.jpg', 'karekok-yayinlari-ayt-progresif-matematik-soru-bankasi_101441.html', 90),
+  row('genis-karekok-tyt-mat-01', 'TYT', 'TYT Mat', 'Karekök Yayınları', 'Karekök Yayınları Geometry Zero', 'images_buyuk/f13/karekok-yayinlari-geometry-zero_MTAzMjEzNTY1MQ==_1.jpg', 'karekok-yayinlari-geometry-zero_103213.html', 86),
+  row('genis-karekok-ayt-kimya-01', 'AYT', 'AYT Kimya', 'Karekök Yayınları', 'Karekök Yayınları AYT Kimya Zor Cep Test', 'images_buyuk/f24/karekok-yayinlari-ayt-kimya-zor-_MTA3NDI0MzUyMw==_1.jpg', 'karekok-yayinlari-ayt-kimya-zor-cep-test_107424.html', 80),
+  row('genis-palme-tyt-mat-01', 'TYT', 'TYT Mat', 'Palme Yayınları', 'Palme Yayınları TYT Matematik TİM Tematik İzleme Modülleri', 'images_buyuk/f32/palme-yayinlari-tyt-matematik-ti_OTg1MzI0ODAy_1.jpg', 'palme-yayinlari-tyt-matematik-tim-tematik-izleme-modulleri_98532.html', 83),
+  row('genis-palme-ayt-fizik-01', 'AYT', 'AYT Fizik', 'Palme Yayınları', 'Palme Yayınları AYT Enerji Fizik Konu Özetli Soru Fasikülleri', 'images_buyuk/f26/palme-yayinlari-ayt-enerji-fizik_OTY3MjYwMzA2_1.jpg', 'palme-yayinlari-ayt-enerji-fizik-konu-ozetli-soru-fasikulleri_96726.html', 82),
+  row('genis-limit-tyt-bio-01', 'TYT', 'TYT Fen', 'Limit Yayınları', 'Limit Yayınları TYT Biyoloji Soru Bankası', 'images_buyuk/f45/limit-yayinlari-tyt-biyoloji-sor_MTA3MjQ1MzgyNA==_1.jpg', 'limit-yayinlari-tyt-biyoloji-soru-bankasi_107245.html', 87),
+  row('genis-limit-ayt-bio-01', 'AYT', 'AYT Bio', 'Limit Yayınları', 'Limit Yayınları AYT Biyoloji Soru Bankası', 'images_buyuk/f73/limit-yayinlari-ayt-biyoloji-sor_MTA3MTczMzEzNA==_1.jpg', 'limit-yayinlari-ayt-biyoloji-soru-bankasi_107173.html', 86),
+  row('genis-limit-ayt-cografya-01', 'AYT', 'AYT Edebiyat', 'Limit Yayınları', 'Limit Yayınları AYT Coğrafya Soru Bankası', 'images_buyuk/f46/limit-yayinlari-ayt-cografya-sor_MTA3MjQ2NDMxOA==_1.jpg', 'limit-yayinlari-ayt-cografya-soru-bankasi_107246.html', 78),
+  row('genis-hr-ayt-mat-01', 'AYT', 'AYT Mat', 'Hız ve Renk Yayınları', 'Hız ve Renk AYT Matematik Soru Bankası', 'images_buyuk/f75/hiz-ve-renk-ayt-matematik-soru-b_MTA0Njc1MDc0NA==_1.jpg', 'hiz-ve-renk-ayt-matematik-soru-bankasi_104675.html', 86),
+  row('genis-hr-tyt-mat-01', 'TYT', 'TYT Mat', 'Hız ve Renk Yayınları', 'Hız ve Renk Yayınları TYT Matematik 15 x 40 Denemeleri', 'images_buyuk/f90/hiz-ve-renk-yayinlari-tyt-matema_MTA1MTkwNTIxNw==_1.jpg', 'hiz-ve-renk-yayinlari-tyt-matematik-15-x-40-denemeleri_105190.html', 85),
+  row('genis-hr-ayt-kimya-01', 'AYT', 'AYT Kimya', 'Hız ve Renk Yayınları', 'Hız ve Renk Yayınları AYT Organik Kimya Soru Bankası', 'images_buyuk/f17/hiz-ve-renk-yayinlari-ayt-organi_MTA0NTE3MzEyNA==_1.jpg', 'hiz-ve-renk-yayinlari-ayt-organik-kimya-soru-bankasi_104517.html', 81),
+  row('genis-benim-tyt-mat-01', 'TYT', 'TYT Mat', 'Benim Hocam Yayınları', 'Benim Hocam 2026 TYT Matematik Ders Notları', 'images_buyuk/f37/benim-hocam-2026-tyt-matematik-d_MTA2MDM3MDQ1NA==_1.jpg', 'benim-hocam-2026-tyt-matematik-ders-notlari_106037.html', 84),
+  row('genis-benim-ayt-mat-01', 'AYT', 'AYT Mat', 'Benim Hocam Yayınları', 'Benim Hocam 2026 AYT Matematik Ders Notları', 'images_buyuk/f36/benim-hocam-2026-ayt-matematik-d_MTA2MDM2MjIzMg==_1.jpg', 'benim-hocam-2026-ayt-matematik-ders-notlari_106036.html', 83),
+  row('genis-benim-tyt-fen-01', 'TYT', 'TYT Fen', 'Benim Hocam Yayınları', 'Benim Hocam TYT Fen Bilimleri 15 li Branş Deneme', 'images_buyuk/f47/benim-hocam-tyt-fen-bilimleri-15_MTA3MjQ3NDUxMw==_1.jpg', 'benim-hocam-tyt-fen-bilimleri-15-li-brans-deneme_107247.html', 80),
+  row('genis-kr-ayt-kimya-01', 'AYT', 'AYT Kimya', 'KR Akademi', 'KR Akademi Celal Hoca AYT Kimya Video Ders Kitabı', 'images_buyuk/f35/kr-akademi-celal-hoca-ayt-kimya-_MTA3MTM1MzIwMg==_1.jpg', 'kr-akademi-celal-hoca-ayt-kimya-video-ders-kitabi_107135.html', 90),
+  row('genis-kr-tyt-turkce-01', 'TYT', 'TYT Türkçe', 'KR Akademi', 'KR Akademi Nazlı Hocam TYT Türkçe Video Ders Kitabı', 'images_buyuk/f49/kr-akademi-nazli-hocam-tyt-turkc_MTA2MzQ5MzUzMQ==_1.jpg', 'kr-akademi-nazli-hocam-tyt-turkce-video-ders-kitabi_106349.html', 84),
+  row('genis-kr-ayt-edebiyat-01', 'AYT', 'AYT Edebiyat', 'KR Akademi', 'KR Akademi 2026 AYT Edebiyat Twins Soru Bankası', 'images_buyuk/f99/kr-akademi-2026-ayt-edebiyat-twi_MTA2NTk5MjY1MA==_1.jpg', 'kr-akademi-2026-ayt-edebiyat-twins-soru-bankasi_106599.html', 83),
+  row('genis-yayin-denizi-tyt-turkce-01', 'TYT', 'TYT Türkçe', 'Yayın Denizi', 'Yayın Denizi TYT Türkçe 16 x 40 Branş Denemeleri', 'images_buyuk/f56/yayin-denizi-tyt-turkce-16-x-40-_MTA3NDU2NDkyNA==_1.jpg', 'yayin-denizi-tyt-turkce-16-x-40-brans-denemeleri_107456.html', 85),
+  row('genis-yayin-denizi-ayt-edebiyat-01', 'AYT', 'AYT Edebiyat', 'Yayın Denizi', 'Yayın Denizi AYT Edebiyat Denemeleri', 'images_buyuk/f90/yayin-denizi-ayt-edebiyat-deneme_MTA3NDkwMzExMQ==_1.jpg', 'yayin-denizi-ayt-edebiyat-denemeleri_107490.html', 84),
+  row('genis-yayin-denizi-tyt-sosyal-01', 'TYT', 'TYT Sosyal', 'Yayın Denizi', 'Yayın Denizi TYT Coğrafya Ders Platosu 7 Günde 2X Hızında Bitir Deneme', 'images_buyuk/f67/yayin-denizi-tyt-cografya-2x-hiz_MTA2NjY3MzY0Ng==_1.jpg', 'yayin-denizi-tyt-cografya-ders-platosu-7-gunde-2x-hizinda-bitir-deneme_106667.html', 78),
+  row('genis-miray-tyt-turkce-01', 'TYT', 'TYT Türkçe', 'Miray Yayınları', 'Miray Yayınları TYT Paragraf Soru Bankası', 'images_buyuk/f30/miray-yayinlari-tyt-paragraf-sor_OTc5MzAzNjUz_1.jpg', 'miray-yayinlari-tyt-paragraf-soru-bankasi_97930.html', 82),
+  row('genis-miray-tyt-sosyal-01', 'TYT', 'TYT Sosyal', 'Miray Yayınları', 'Miray Yayınları TYT Sosyal Bilimler 15 Deneme', 'images_buyuk/f69/miray-yayinlari-tyt-sosyal-bilim_MTAwMDY5MDQwNw==_1.jpg', 'miray-yayinlari-tyt-sosyal-bilimler-15-deneme_100069.html', 78),
+  row('genis-endemik-tyt-mat-01', 'TYT', 'TYT Mat', 'Endemik Yayınları', 'Endemik Yayınları TYT Matematik 12 Deneme', 'images_buyuk/f28/endemik-yayinlari-tyt-matematik-_OTg1Mjg0MDA2_1.jpg', 'endemik-yayinlari-tyt-matematik-12-deneme_98528.html', 79),
+  row('genis-endemik-tyt-fen-01', 'TYT', 'TYT Fen', 'Endemik Yayınları', 'Endemik Yayınları TYT Fen Bilimleri 20 Deneme', 'images_buyuk/f33/endemik-yayinlari-tyt-fen-biliml_OTg1MzM0ODU1_1.jpg', 'endemik-yayinlari-tyt-fen-bilimleri-20-deneme_98533.html', 78),
+  row('genis-acil-tyt-mat-01', 'TYT', 'TYT Mat', 'Acil Yayınları', 'Acil Yayınları TYT Matematik KURS Soru Bankası', 'images_buyuk/f42/acil-yayinlari-tyt-matematik-kur_MTAxOTQyNDAzNw==_1.jpg', 'acil-yayinlari-tyt-matematik-kurs-soru-bankasi_101942.html', 89),
+  row('genis-acil-ayt-mat-01', 'AYT', 'AYT Mat', 'Acil Yayınları', 'Acil Yayınları AYT Matematik KURS Soru Bankası', 'images_buyuk/f73/acil-yayinlari-ayt-matematik-kur_MTAxOTczNDAzNQ==_1.jpg', 'acil-yayinlari-ayt-matematik-kurs-soru-bankasi_101973.html', 88),
+  row('genis-baris-tyt-mat-01', 'TYT', 'TYT Mat', 'Barış Yayınları', 'Barış Yayınları TYT MSÜ ALES KPSS DGS Matematik Problemler Konu Denemeleri', 'images_buyuk/f3/baris-yayinlari-tyt-msu-ales-kps_MTA3MTAzNTIzOQ==_1.jpg', 'baris-yayinlari-tyt-msu-ales-kpss-dgs-matematik-problemler-konu-denemeleri_107103.html', 88),
+  row('genis-baris-ayt-mat-01', 'AYT', 'AYT Mat', 'Barış Yayınları', 'Barış Yayınları AYT İlk 10 Soru Konu Denemeleri', 'images_buyuk/f1/baris-yayinlari-ayt-ilk-10-soru-_MTAwNTAxMDkyMg==_1.jpg', 'baris-yayinlari-ayt-ilk-10-soru-konu-denemeleri_100501.html', 86),
+  row('genis-baris-tyt-fen-01', 'TYT', 'TYT Fen', 'Barış Yayınları', 'Barış Yayınları TYT Fizik Kimya Biyoloji Denemesi 15 Adet', 'images_buyuk/f58/baris-yayinlari-tyt-fizik-kimya-_MTAwMTU4NDUwNg==_1.jpg', 'baris-yayinlari-tyt-fizik-kimya-biyoloji-denemesi-15-adet_100158.html', 77),
 ]
 
 export const KAYNAK_DERSLER = Array.from(new Set(KAYNAK_KATALOGU.map(kaynak => kaynak.ders)))
-export const KAYNAK_YAYINEVLERI = Array.from(new Set(KAYNAK_KATALOGU.map(kaynak => kaynak.yayinevi))).sort((a, b) => a.localeCompare(b, 'tr'))
+export const KAYNAK_YAYINEVLERI = Array.from(new Set(KAYNAK_KATALOGU.map(kaynak => kaynak.yayinevi))).sort((a, b) => yayineviOncelik(a) - yayineviOncelik(b) || a.localeCompare(b, 'tr'))
