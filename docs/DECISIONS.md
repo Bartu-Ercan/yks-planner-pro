@@ -51,7 +51,7 @@ Neden:
 
 - Ürünün ana gücü sade ve hızlı günlük planlama deneyimidir.
 - Görsel kalite artarken karar yükü ve arayüz yoğunluğu artmamalıdır.
-- Dengeli modda büyük yüzeyler nötr siyah/açık kalmalı, tema rengi sadece accent, aktif durum, progress, focus ve görev aksiyonlarında görünmelidir.
+- Büyük yüzeyler düz koyu/açık kalmalı, tema rengi sadece accent, aktif durum, progress, focus ve görev aksiyonlarında görünmelidir.
 
 Sonuç:
 

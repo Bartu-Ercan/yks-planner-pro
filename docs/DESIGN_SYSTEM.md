@@ -40,7 +40,18 @@ Ana yüzey tam ekran tema zeminidir.
 
 ## Color System
 
-Tema sistemi v2, her temayı kendi token setiyle taşır. Renkler Color Hunt'ın hand-picked palette mantığı ve Flat UI Colors'ın dengeli kontrast yaklaşımı baz alınarak seçilir; dış palette birebir kopyalanmaz.
+Tema sistemi v4, Flat UI Colors paletlerinden türetilen iki katmanlı bir yapı kullanır. Kullanıcı önce palet seçer, sonra o paletin içindeki dark veya light temalardan birini seçer. Dış görsel asset kopyalanmaz; palet önizlemeleri uygulama içinde swatch olarak üretilir.
+
+Paletler:
+
+- American
+- Aussie
+- British
+- Canadian
+- Turkish
+- Indian
+
+Her palette 6 dark ve 6 light tema vardır. Toplam 72 tema bulunur.
 
 Tema tokenları:
 
@@ -50,7 +61,7 @@ Tema tokenları:
 | `primary` | Ana buton, aktif durum, focus border |
 | `primaryLight` | İkincil vurgu, aktif sayaç, gradient ucu |
 | `accent` | Progress gradient ve yardımcı vurgu |
-| `bg`, `bgGradient` | Sayfa zemini |
+| `bg` | Düz sayfa zemini |
 | `card` | Kart, panel, gün başlığı |
 | `cardSoft` | Input, iç panel, tamamlanmış kart |
 | `border`, `hoverBorder` | İnce ayrım ve hover border |
@@ -60,30 +71,15 @@ Tema tokenları:
 | `success`, `successText` | Toast ve başarı durumu |
 | `overlay`, `shadow`, `hoverShadow` | Modal ve hover derinliği |
 
-Arka plan modları:
+Arka plan kuralı:
 
-- `Dengeli`: varsayılan moddur. Dark temalarda sayfa zemini, kartlar, gün kutuları ve panel yüzeyleri düz siyaha yakın nötr tonlar kullanır. Light temalarda aynı yüzeyler düz nötr açık tonlara çekilir. Tema rengi büyük yüzeylere tint vermez; sadece accent, aktif durum ve aksiyonlarda görünür.
-- `Atmosferik`: tema kartlarındaki daha renkli `bgGradient` değerlerini kullanır.
-- Arka plan modu globaldir; her tema için ayrı kart üretilmez.
+- Arka plan seçimi yoktur; `Dengeli / Atmosferik` modu kaldırılmıştır.
+- Dark temalarda zemin düz koyu siyah/gri tona yakın olur.
+- Light temalarda zemin düz açık/beyazımsı tona yakın olur.
+- Büyük sayfa zeminlerinde gradient veya atmosferik renk kullanılmaz.
+- Tema rengi büyük zeminde değil, buton, progress, aktif gün, checkbox, focus, görev/kaynak accentlerinde görünür.
 
-Mevcut tema seti:
-
-| Tema | Mode | Primary | Primary Light | Accent |
-| --- | --- | --- | --- | --- |
-| Okyanus | Dark | `#3b82f6` | `#60a5fa` | `#22d3ee` |
-| Gece | Dark | `#a78bfa` | `#c4b5fd` | `#f0abfc` |
-| Orman | Dark | `#10b981` | `#34d399` | `#a3e635` |
-| Ateş | Dark | `#f43f5e` | `#fb7185` | `#fb923c` |
-| Günbatımı | Dark | `#f97316` | `#fdba74` | `#facc15` |
-| Pembe Rüya | Dark | `#ec4899` | `#f472b6` | `#f59e0b` |
-| Sabah | Light | `#d97706` | `#f59e0b` | `#0891b2` |
-| Gökyüzü | Light | `#2563eb` | `#60a5fa` | `#06b6d4` |
-| Mint | Light | `#059669` | `#34d399` | `#14b8a6` |
-| Lavanta | Light | `#7c3aed` | `#a78bfa` | `#ec4899` |
-| Şeftali | Light | `#ea580c` | `#fb923c` | `#f43f5e` |
-| Studio | Light | `#111827` | `#374151` | `#2563eb` |
-
-Eski `localStorage` tema anahtarları korunur: `mavi`, `mor`, `yesil`, `kirmizi`, `turuncu`, `pembe`. Yeni seçimler yine `yks-tema` içinde saklanır.
+Eski `localStorage` tema anahtarları korunur: `mavi`, `mor`, `yesil`, `kirmizi`, `turuncu`, `pembe`. Yeni seçimler yine `yks-tema` içinde saklanır. Eski `yks-bg-style` değeri kullanılmaz.
 
 Tema vurgusu kullanılacak yerler:
 
@@ -246,13 +242,13 @@ Spacing:
 ### Theme Selector
 
 - Ayarlar modalı içinde kart grid.
-- Üst seviye sekmeler: `Tema Rengi` ve `Font`.
-- `Tema Rengi` içinde arka plan modu ve dark/light tema listesi yer alır.
+- Üst seviye sekmeler: `Tema Rengi`, `Font`, `Cursor`, `Kaynak`.
+- `Tema Rengi` içinde önce 6 palet kartı, sonra seçili palette dark/light tema listesi yer alır.
 - `Font` içinde 6 font kartı ve canlı kısa preview yer alır.
 - `Cursor` içinde 2 seçenek yer alır: `Sade` ve `Sistem`.
 - Dark / Light segmented control kullanır.
-- Tema kartları seçili arka plan moduna göre önizleme verir; `border`, `16px` radius ve kompakt yoğunluğu korur.
-- Her tema üç swatch gösterir: `primary`, `primaryLight`, `accent`.
+- Tema kartları düz zemin ve swatch önizlemesi verir; `border`, `14-16px` radius ve kompakt yoğunluğu korur.
+- Her tema paletten türetilmiş swatch seti gösterir.
 - Aktif tema border ve küçük check ile belirtilir.
 
 ### Toast
@@ -315,7 +311,7 @@ Yeni frontend işi bitmeden şunlar kontrol edilir:
 - [ ] Tema tokenları doğru kullanıldı.
 - [ ] Dark ve light tema kontrastları okunabilir.
 - [ ] Font seçimi okunabilir ve localStorage'dan geri yükleniyor.
-- [ ] Arka plan modu dengeli/atmosferik olarak geri yükleniyor.
+- [ ] Tema paleti ve dark/light seçimi `yks-tema` içinden geri yükleniyor.
 - [ ] Mobile yatay board davranışı bozulmadı.
 - [ ] Task card yoğunluğu ve boyutu mevcut stile yakın.
 - [ ] Modal, button ve input stilleri mevcut sistemden türedi.

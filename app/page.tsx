@@ -15,18 +15,22 @@ import {
   ListPlus,
   LogIn,
   LogOut,
+  Moon,
   MousePointer2,
   MoveRight,
   NotebookPen,
+  Palette,
   Plus,
   Save,
   Settings,
+  Sun,
   Trash2,
   Type,
   X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { KAYNAK_DERSLER, KAYNAK_KATALOGU, KAYNAK_YAYINEVLERI, type KaynakKatalogItem, type SinavTuru } from '@/lib/kaynak-katalogu'
+import { PALETLER, PALET_SIRASI, TEMALAR as FLAT_TEMALAR, normalizeTemaKey as normalizeFlatTemaKey, type PaletKey, type TemaMode } from '@/lib/tema-paletleri'
 import type { User } from '@supabase/supabase-js'
 
 const DERSLER = ['TYT Mat','TYT Türkçe','TYT Fen','TYT Sosyal','TYT Genel Deneme','AYT Mat','AYT Fizik','AYT Kimya','AYT Bio','AYT Edebiyat','AYT Tarih','AYT Genel Deneme']
@@ -45,9 +49,7 @@ interface Gorev {
   created_at: string
 }
 
-type TemaMode = 'dark' | 'light'
 type AyarSekmesi = 'tema' | 'font' | 'cursor' | 'kaynak'
-type ArkaPlanStili = 'balanced' | 'atmospheric'
 type FontKey = 'dmMono' | 'geistMono' | 'jetBrainsMono' | 'ibmPlexMono' | 'spaceGrotesk' | 'manrope'
 type CursorKey = 'minimal' | 'system'
 type KaynakGorunumu = 'text' | 'visual'
@@ -61,30 +63,6 @@ interface GunlukNot {
 }
 
 type Kaynak = KaynakKatalogItem
-
-interface Tema {
-  name: string
-  mode: TemaMode
-  primary: string
-  primaryLight: string
-  accent: string
-  bg: string
-  bgGradient: string
-  card: string
-  cardSoft: string
-  border: string
-  hoverBorder: string
-  text: string
-  textStrong: string
-  muted: string
-  faint: string
-  onPrimary: string
-  success: string
-  successText: string
-  overlay: string
-  shadow: string
-  hoverShadow: string
-}
 
 interface FontSecenegi {
   name: string
@@ -151,323 +129,13 @@ const CURSORLAR: Record<CursorKey, CursorSecenegi> = {
   },
 }
 
-const TEMALAR: Record<string, Tema> = {
-  mavi: {
-    name: 'Okyanus',
-    mode: 'dark',
-    primary: '#3b82f6',
-    primaryLight: '#60a5fa',
-    accent: '#22d3ee',
-    bg: '#070b14',
-    bgGradient: 'linear-gradient(135deg, #070b14 0%, #0f172a 52%, #07111f 100%)',
-    card: '#111827',
-    cardSoft: '#030712',
-    border: '#1f2937',
-    hoverBorder: '#334155',
-    text: '#e5e7eb',
-    textStrong: '#f8fafc',
-    muted: '#9ca3af',
-    faint: '#4b5563',
-    onPrimary: '#ffffff',
-    success: '#22c55e',
-    successText: '#052e16',
-    overlay: 'rgba(0,0,0,0.8)',
-    shadow: '0 20px 60px rgba(0,0,0,0.5)',
-    hoverShadow: '0 8px 24px rgba(0,0,0,0.3)'
-  },
-  mor: {
-    name: 'Gece',
-    mode: 'dark',
-    primary: '#a78bfa',
-    primaryLight: '#c4b5fd',
-    accent: '#f0abfc',
-    bg: '#0b0714',
-    bgGradient: 'linear-gradient(135deg, #0b0714 0%, #181026 52%, #0d0718 100%)',
-    card: '#111827',
-    cardSoft: '#05020a',
-    border: '#2a2140',
-    hoverBorder: '#4c1d95',
-    text: '#ede9fe',
-    textStrong: '#ffffff',
-    muted: '#a1a1aa',
-    faint: '#6b7280',
-    onPrimary: '#1e103b',
-    success: '#22c55e',
-    successText: '#052e16',
-    overlay: 'rgba(0,0,0,0.8)',
-    shadow: '0 20px 60px rgba(0,0,0,0.5)',
-    hoverShadow: '0 8px 24px rgba(0,0,0,0.3)'
-  },
-  yesil: {
-    name: 'Orman',
-    mode: 'dark',
-    primary: '#10b981',
-    primaryLight: '#34d399',
-    accent: '#a3e635',
-    bg: '#06100c',
-    bgGradient: 'linear-gradient(135deg, #06100c 0%, #0f1f18 52%, #07130e 100%)',
-    card: '#102018',
-    cardSoft: '#03100a',
-    border: '#1f3a2c',
-    hoverBorder: '#2f6f52',
-    text: '#dcfce7',
-    textStrong: '#f7fee7',
-    muted: '#9ca3af',
-    faint: '#64748b',
-    onPrimary: '#022c22',
-    success: '#22c55e',
-    successText: '#052e16',
-    overlay: 'rgba(0,0,0,0.8)',
-    shadow: '0 20px 60px rgba(0,0,0,0.5)',
-    hoverShadow: '0 8px 24px rgba(0,0,0,0.3)'
-  },
-  kirmizi: {
-    name: 'Ateş',
-    mode: 'dark',
-    primary: '#f43f5e',
-    primaryLight: '#fb7185',
-    accent: '#fb923c',
-    bg: '#140707',
-    bgGradient: 'linear-gradient(135deg, #140707 0%, #241111 52%, #160707 100%)',
-    card: '#1f1418',
-    cardSoft: '#100506',
-    border: '#3b1d23',
-    hoverBorder: '#7f1d1d',
-    text: '#ffe4e6',
-    textStrong: '#fff7ed',
-    muted: '#a8a29e',
-    faint: '#78716c',
-    onPrimary: '#fff1f2',
-    success: '#22c55e',
-    successText: '#052e16',
-    overlay: 'rgba(0,0,0,0.8)',
-    shadow: '0 20px 60px rgba(0,0,0,0.5)',
-    hoverShadow: '0 8px 24px rgba(0,0,0,0.3)'
-  },
-  turuncu: {
-    name: 'Günbatımı',
-    mode: 'dark',
-    primary: '#f97316',
-    primaryLight: '#fdba74',
-    accent: '#facc15',
-    bg: '#130b04',
-    bgGradient: 'linear-gradient(135deg, #130b04 0%, #241606 52%, #170d04 100%)',
-    card: '#1f1710',
-    cardSoft: '#100803',
-    border: '#3b2a18',
-    hoverBorder: '#9a3412',
-    text: '#ffedd5',
-    textStrong: '#fff7ed',
-    muted: '#a8a29e',
-    faint: '#78716c',
-    onPrimary: '#431407',
-    success: '#22c55e',
-    successText: '#052e16',
-    overlay: 'rgba(0,0,0,0.8)',
-    shadow: '0 20px 60px rgba(0,0,0,0.5)',
-    hoverShadow: '0 8px 24px rgba(0,0,0,0.3)'
-  },
-  pembe: {
-    name: 'Pembe Rüya',
-    mode: 'dark',
-    primary: '#ec4899',
-    primaryLight: '#f472b6',
-    accent: '#f59e0b',
-    bg: '#140711',
-    bgGradient: 'linear-gradient(135deg, #140711 0%, #241020 52%, #150814 100%)',
-    card: '#1f1420',
-    cardSoft: '#10050d',
-    border: '#3a1f36',
-    hoverBorder: '#831843',
-    text: '#fce7f3',
-    textStrong: '#fff7fb',
-    muted: '#a8a29e',
-    faint: '#78716c',
-    onPrimary: '#fff7fb',
-    success: '#22c55e',
-    successText: '#052e16',
-    overlay: 'rgba(0,0,0,0.8)',
-    shadow: '0 20px 60px rgba(0,0,0,0.5)',
-    hoverShadow: '0 8px 24px rgba(0,0,0,0.3)'
-  },
-  sabah: {
-    name: 'Sabah',
-    mode: 'light',
-    primary: '#d97706',
-    primaryLight: '#f59e0b',
-    accent: '#0891b2',
-    bg: '#fff7ed',
-    bgGradient: 'linear-gradient(135deg, #fff7ed 0%, #fffbeb 50%, #ecfeff 100%)',
-    card: '#ffffff',
-    cardSoft: '#fff7ed',
-    border: '#fed7aa',
-    hoverBorder: '#fb923c',
-    text: '#3f2a1d',
-    textStrong: '#1c1917',
-    muted: '#9a3412',
-    faint: '#c08457',
-    onPrimary: '#ffffff',
-    success: '#16a34a',
-    successText: '#ffffff',
-    overlay: 'rgba(67,20,7,0.34)',
-    shadow: '0 20px 60px rgba(124,45,18,0.18)',
-    hoverShadow: '0 8px 24px rgba(124,45,18,0.14)'
-  },
-  gokyuzu: {
-    name: 'Gökyüzü',
-    mode: 'light',
-    primary: '#2563eb',
-    primaryLight: '#60a5fa',
-    accent: '#06b6d4',
-    bg: '#eff6ff',
-    bgGradient: 'linear-gradient(135deg, #eff6ff 0%, #f8fafc 48%, #ecfeff 100%)',
-    card: '#ffffff',
-    cardSoft: '#f1f5f9',
-    border: '#bfdbfe',
-    hoverBorder: '#60a5fa',
-    text: '#1e293b',
-    textStrong: '#0f172a',
-    muted: '#475569',
-    faint: '#94a3b8',
-    onPrimary: '#ffffff',
-    success: '#16a34a',
-    successText: '#ffffff',
-    overlay: 'rgba(15,23,42,0.36)',
-    shadow: '0 20px 60px rgba(30,64,175,0.16)',
-    hoverShadow: '0 8px 24px rgba(30,64,175,0.14)'
-  },
-  mint: {
-    name: 'Mint',
-    mode: 'light',
-    primary: '#059669',
-    primaryLight: '#34d399',
-    accent: '#14b8a6',
-    bg: '#ecfdf5',
-    bgGradient: 'linear-gradient(135deg, #ecfdf5 0%, #f7fee7 50%, #f0fdfa 100%)',
-    card: '#ffffff',
-    cardSoft: '#f0fdf4',
-    border: '#bbf7d0',
-    hoverBorder: '#34d399',
-    text: '#164e3b',
-    textStrong: '#052e16',
-    muted: '#047857',
-    faint: '#86a79b',
-    onPrimary: '#ffffff',
-    success: '#16a34a',
-    successText: '#ffffff',
-    overlay: 'rgba(6,78,59,0.34)',
-    shadow: '0 20px 60px rgba(5,150,105,0.16)',
-    hoverShadow: '0 8px 24px rgba(5,150,105,0.14)'
-  },
-  lavanta: {
-    name: 'Lavanta',
-    mode: 'light',
-    primary: '#7c3aed',
-    primaryLight: '#a78bfa',
-    accent: '#ec4899',
-    bg: '#f5f3ff',
-    bgGradient: 'linear-gradient(135deg, #f5f3ff 0%, #faf5ff 50%, #fff1f2 100%)',
-    card: '#ffffff',
-    cardSoft: '#faf5ff',
-    border: '#ddd6fe',
-    hoverBorder: '#a78bfa',
-    text: '#312e81',
-    textStrong: '#1e1b4b',
-    muted: '#6d28d9',
-    faint: '#a78bfa',
-    onPrimary: '#ffffff',
-    success: '#16a34a',
-    successText: '#ffffff',
-    overlay: 'rgba(49,46,129,0.34)',
-    shadow: '0 20px 60px rgba(109,40,217,0.16)',
-    hoverShadow: '0 8px 24px rgba(109,40,217,0.14)'
-  },
-  seftali: {
-    name: 'Şeftali',
-    mode: 'light',
-    primary: '#ea580c',
-    primaryLight: '#fb923c',
-    accent: '#f43f5e',
-    bg: '#fff1f2',
-    bgGradient: 'linear-gradient(135deg, #fff1f2 0%, #fff7ed 48%, #fffbeb 100%)',
-    card: '#ffffff',
-    cardSoft: '#fff7ed',
-    border: '#fecdd3',
-    hoverBorder: '#fb7185',
-    text: '#4a1d1d',
-    textStrong: '#1c1917',
-    muted: '#be123c',
-    faint: '#d68686',
-    onPrimary: '#ffffff',
-    success: '#16a34a',
-    successText: '#ffffff',
-    overlay: 'rgba(127,29,29,0.32)',
-    shadow: '0 20px 60px rgba(190,18,60,0.16)',
-    hoverShadow: '0 8px 24px rgba(190,18,60,0.14)'
-  },
-  studio: {
-    name: 'Studio',
-    mode: 'light',
-    primary: '#111827',
-    primaryLight: '#374151',
-    accent: '#2563eb',
-    bg: '#f8fafc',
-    bgGradient: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 50%, #eef2ff 100%)',
-    card: '#ffffff',
-    cardSoft: '#f1f5f9',
-    border: '#cbd5e1',
-    hoverBorder: '#64748b',
-    text: '#1f2937',
-    textStrong: '#0f172a',
-    muted: '#475569',
-    faint: '#94a3b8',
-    onPrimary: '#ffffff',
-    success: '#16a34a',
-    successText: '#ffffff',
-    overlay: 'rgba(15,23,42,0.36)',
-    shadow: '0 20px 60px rgba(15,23,42,0.14)',
-    hoverShadow: '0 8px 24px rgba(15,23,42,0.12)'
-  },
-}
-
-const normalizeTemaKey = (key: string | null) => key && TEMALAR[key] ? key : 'mavi'
+const normalizeTemaKey = (key: string | null) => normalizeFlatTemaKey(key)
 const normalizeFontKey = (key: string | null): FontKey =>
   key && key in FONTLAR ? (key as FontKey) : 'dmMono'
 const normalizeCursorKey = (key: string | null): CursorKey =>
   key === 'system' ? 'system' : 'minimal'
-const normalizeArkaPlanStili = (key: string | null): ArkaPlanStili =>
-  key === 'atmospheric' ? 'atmospheric' : 'balanced'
 const normalizeKaynakGorunumu = (key: string | null): KaynakGorunumu =>
   key === 'visual' ? 'visual' : 'text'
-const getDengeliArkaPlan = (tema: Tema) => tema.mode === 'dark' ? '#05070d' : '#f8fafc'
-const getDengeliTema = (tema: Tema): Tema => {
-  if (tema.mode === 'dark') {
-    return {
-      ...tema,
-      bg: '#05070d',
-      card: '#080b10',
-      cardSoft: '#0d1117',
-      border: '#1a2230',
-      hoverBorder: tema.primaryLight,
-      overlay: 'rgba(2,6,12,0.72)',
-      shadow: '0 20px 60px rgba(0,0,0,0.34)',
-      hoverShadow: '0 8px 24px rgba(0,0,0,0.26)',
-    }
-  }
-
-  return {
-    ...tema,
-    bg: '#f8fafc',
-    card: '#ffffff',
-    cardSoft: '#f1f5f9',
-    border: '#e2e8f0',
-    hoverBorder: tema.primaryLight,
-    overlay: 'rgba(15,23,42,0.36)',
-    shadow: '0 20px 60px rgba(15,23,42,0.14)',
-    hoverShadow: '0 8px 24px rgba(15,23,42,0.12)',
-  }
-}
-
 const DERS_RENKLERI: Record<string, string> = {
   'TYT Mat':'#60a5fa','TYT Türkçe':'#a78bfa','TYT Fen':'#34d399','TYT Sosyal':'#fbbf24',
   'TYT Genel Deneme':'#f87171',
@@ -588,11 +256,11 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [guestMigrate, setGuestMigrate] = useState(false)
   const [tercihlerYuklendi, setTercihlerYuklendi] = useState(false)
-  const [aktifTema, setAktifTema] = useState('mavi')
+  const [aktifTema, setAktifTema] = useState('american-dark-1')
+  const [aktifTemaPaleti, setAktifTemaPaleti] = useState<PaletKey | null>(null)
   const [temaSekmesi, setTemaSekmesi] = useState<TemaMode>('dark')
   const [aktifFont, setAktifFont] = useState<FontKey>('dmMono')
   const [aktifCursor, setAktifCursor] = useState<CursorKey>('minimal')
-  const [arkaPlanStili, setArkaPlanStili] = useState<ArkaPlanStili>('balanced')
   const [kaynakGorunumu, setKaynakGorunumu] = useState<KaynakGorunumu>('text')
   const [draggingTask, setDraggingTask] = useState<Gorev | null>(null)
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
@@ -606,13 +274,15 @@ export default function Home() {
   const previousUserSelectRef = useRef<string | null>(null)
   const previousHtmlUserSelectRef = useRef<string | null>(null)
 
-  const seciliTema = TEMALAR[aktifTema]
-  const tema = arkaPlanStili === 'balanced' ? getDengeliTema(seciliTema) : seciliTema
+  const seciliTema = FLAT_TEMALAR[aktifTema] || FLAT_TEMALAR[normalizeTemaKey(aktifTema)]
+  const tema = seciliTema
   const font = FONTLAR[aktifFont]
-  const sayfaArkaPlani = arkaPlanStili === 'atmospheric' ? seciliTema.bgGradient : getDengeliArkaPlan(seciliTema)
+  const sayfaArkaPlani = seciliTema.bg
   const gorunenGunler = Array.from({ length: 7 }, (_, i) => getGunBilgisi(gunOffset, i))
   const gorunenHaftalar = Array.from(new Set(gorunenGunler.map(g => g.hafta)))
-  const seciliTemaListesi = Object.entries(TEMALAR).filter(([, t]) => t.mode === temaSekmesi)
+  const seciliTemaListesi = aktifTemaPaleti
+    ? Object.entries(FLAT_TEMALAR).filter(([, t]) => t.palette === aktifTemaPaleti && t.mode === temaSekmesi)
+    : []
   const customCursorAktif = !isMobile && !cursorKapali && aktifCursor !== 'system'
   const cursorMode = kopyaDrag ? 'copy' : draggingTask ? 'drag' : dragOverDay !== null ? 'target' : cursorInteractive ? 'hover' : 'normal'
   const iconProps = { size: 14, strokeWidth: 2.1 }
@@ -861,10 +531,10 @@ export default function Home() {
     const frame = window.requestAnimationFrame(() => {
       const storedTema = normalizeTemaKey(localStorage.getItem('yks-tema'))
       setAktifTema(storedTema)
-      setTemaSekmesi(TEMALAR[storedTema].mode)
+      setTemaSekmesi(FLAT_TEMALAR[storedTema].mode)
       setAktifFont(normalizeFontKey(localStorage.getItem('yks-font')))
       setAktifCursor(normalizeCursorKey(localStorage.getItem('yks-cursor')))
-      setArkaPlanStili(normalizeArkaPlanStili(localStorage.getItem('yks-bg-style')))
+      localStorage.removeItem('yks-bg-style')
       setKaynakGorunumu(normalizeKaynakGorunumu(localStorage.getItem('yks-kaynak-gorunumu')))
       setTercihlerYuklendi(true)
     })
@@ -885,11 +555,6 @@ export default function Home() {
     if (!tercihlerYuklendi) return
     localStorage.setItem('yks-cursor', aktifCursor)
   }, [aktifCursor, tercihlerYuklendi])
-
-  useEffect(() => {
-    if (!tercihlerYuklendi) return
-    localStorage.setItem('yks-bg-style', arkaPlanStili)
-  }, [arkaPlanStili, tercihlerYuklendi])
 
   useEffect(() => {
     if (!tercihlerYuklendi) return
@@ -1828,93 +1493,121 @@ export default function Home() {
             </div>
 
             {ayarSekmesi === 'tema' ? (
-              <>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
-                  {[
-                    ['balanced', 'Dengeli'],
-                    ['atmospheric', 'Atmosferik'],
-                  ].map(([key, label]) => {
-                    const active = arkaPlanStili === key
-                    return (
+              aktifTemaPaleti ? (
+                <>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:14 }}>
+                    <button
+                      onClick={() => setAktifTemaPaleti(null)}
+                      className="btn-hover"
+                      style={{ display:'inline-flex', alignItems:'center', gap:7, padding:'9px 12px', borderRadius:9, border:`1px solid ${tema.border}`, background:tema.cardSoft, color:tema.muted, cursor:'pointer', fontSize:11, fontWeight:700 }}
+                    >
+                      <ChevronLeft size={13} strokeWidth={2.2} /> Paletler
+                    </button>
+                    <p style={{ margin:0, fontSize:12, color:tema.textStrong, fontWeight:800 }}>{PALETLER[aktifTemaPaleti].name}</p>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
+                    {(['dark','light'] as TemaMode[]).map(mode => {
+                      const active = temaSekmesi === mode
+                      return (
+                        <button
+                          key={mode}
+                          onClick={() => setTemaSekmesi(mode)}
+                          className="btn-hover"
+                          style={{
+                            padding:'10px 0',
+                            border:'none',
+                            borderRadius:8,
+                            background: active ? tema.primary : 'transparent',
+                            color: active ? tema.onPrimary : tema.muted,
+                            cursor:'pointer',
+                            fontSize:12,
+                            fontWeight:600,
+                            letterSpacing:0
+                          }}
+                        >
+                          {mode === 'dark' ? 'Dark' : 'Light'}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
+                    {seciliTemaListesi.map(([key, t]) => (
                       <button
                         key={key}
-                        onClick={() => setArkaPlanStili(key as ArkaPlanStili)}
+                        onClick={() => setAktifTema(key)}
                         className="btn-hover"
                         style={{
-                          padding:'10px 0',
-                          border:'none',
-                          borderRadius:8,
-                          background: active ? tema.primary : 'transparent',
-                          color: active ? tema.onPrimary : tema.muted,
+                          padding:'18px 15px',
+                          borderRadius:14,
+                          border: aktifTema === key ? `2px solid ${t.primary}` : `1px solid ${tema.border}`,
+                          background:t.card,
                           cursor:'pointer',
-                          fontSize:12,
-                          fontWeight:600,
-                          letterSpacing:0
+                          textAlign:'left',
+                          position:'relative',
+                          overflow:'hidden',
+                          transition:'all 0.2s'
                         }}
                       >
-                        {label}
+                        <div style={{ display:'flex', gap:6, marginBottom:11 }}>
+                          {t.swatches.slice(0, 4).map((swatch, swatchIndex) => (
+                            <div key={`${key}-${swatch}`} style={{ width:22, height:22, borderRadius:6, background:swatch, border:`1px solid ${t.border}`, opacity: swatchIndex > 1 ? 0.72 : 1 }} />
+                          ))}
+                        </div>
+                        <p style={{ margin:0, fontSize:13, color:t.textStrong, fontWeight:700 }}>{t.name.replace(`${t.paletteName} `, '')}</p>
+                        <p style={{ margin:'4px 0 0', fontSize:10, color:t.muted, fontWeight:600 }}>{t.paletteName}</p>
+                        {aktifTema === key && (
+                          <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:t.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <Check size={12} strokeWidth={2.4} color={t.onPrimary} />
+                          </div>
+                        )}
                       </button>
-                    )
-                  })}
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
-                  {(['dark','light'] as TemaMode[]).map(mode => {
-                    const active = temaSekmesi === mode
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
+                  {PALET_SIRASI.map(paletKey => {
+                    const palet = PALETLER[paletKey]
+                    const active = seciliTema.palette === paletKey
                     return (
                       <button
-                        key={mode}
-                        onClick={() => setTemaSekmesi(mode)}
+                        key={paletKey}
+                        onClick={() => {
+                          setAktifTemaPaleti(paletKey)
+                          setTemaSekmesi(active ? seciliTema.mode : 'dark')
+                        }}
                         className="btn-hover"
                         style={{
-                          padding:'10px 0',
-                          border:'none',
-                          borderRadius:8,
-                          background: active ? tema.primary : 'transparent',
-                          color: active ? tema.onPrimary : tema.muted,
+                          padding:'18px 15px',
+                          borderRadius:14,
+                          border: active ? `2px solid ${tema.primary}` : `1px solid ${tema.border}`,
+                          background:tema.cardSoft,
+                          color:tema.text,
                           cursor:'pointer',
-                          fontSize:12,
-                          fontWeight:600,
-                          letterSpacing:0
+                          textAlign:'left',
+                          position:'relative',
+                          overflow:'hidden'
                         }}
                       >
-                        {mode === 'dark' ? 'Dark' : 'Light'}
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:4, marginBottom:12 }}>
+                          {palet.colors.slice(0, 10).map(renk => (
+                            <span key={renk.hex} style={{ height:14, borderRadius:4, background:renk.hex, boxShadow:`inset 0 0 0 1px ${tema.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)'}` }} />
+                          ))}
+                        </div>
+                        <p style={{ margin:0, fontSize:14, color:tema.textStrong, fontWeight:800, display:'inline-flex', alignItems:'center', gap:7 }}>
+                          <Palette size={13} strokeWidth={2.1} /> {palet.name}
+                        </p>
+                        <p style={{ margin:'5px 0 0', fontSize:10, color:tema.faint, fontWeight:600 }}>6 Dark + 6 Light</p>
+                        {active && (
+                          <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:tema.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <Check size={12} strokeWidth={2.4} color={tema.onPrimary} />
+                          </div>
+                        )}
                       </button>
                     )
                   })}
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
-                  {seciliTemaListesi.map(([key, t]) => (
-                    <button
-                      key={key}
-                      onClick={() => setAktifTema(key)}
-                      className="btn-hover"
-                      style={{
-                        padding:'20px 16px',
-                        borderRadius:16,
-                        border: aktifTema === key ? `2px solid ${t.primary}` : `1px solid ${tema.border}`,
-                        background: arkaPlanStili === 'atmospheric' ? t.bgGradient : getDengeliArkaPlan(t),
-                        cursor:'pointer',
-                        textAlign:'left',
-                        position:'relative',
-                        overflow:'hidden',
-                        transition:'all 0.2s'
-                      }}
-                    >
-                      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-                        <div style={{ width:24, height:24, borderRadius:6, background:t.primary, border:`1px solid ${t.border}` }} />
-                        <div style={{ width:24, height:24, borderRadius:6, background:t.primaryLight, border:`1px solid ${t.border}` }} />
-                        <div style={{ width:24, height:24, borderRadius:6, background:t.accent, border:`1px solid ${t.border}` }} />
-                      </div>
-                      <p style={{ margin:0, fontSize:14, color:t.textStrong, fontWeight:600 }}>{t.name}</p>
-                      {aktifTema === key && (
-                        <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:t.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                          <Check size={12} strokeWidth={2.4} color={t.onPrimary} />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </>
+              )
             ) : ayarSekmesi === 'font' ? (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
                 {Object.entries(FONTLAR).map(([key, f]) => (
@@ -2346,6 +2039,9 @@ export default function Home() {
         </div>
 
         <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, order: isMobile ? 0 : 0 }}>
+          <button onClick={() => setAktifTema(seciliTema.pairedThemeKey)} className="btn-hover" aria-label={tema.mode === 'dark' ? 'light moda geç' : 'dark moda geç'} title={tema.mode === 'dark' ? 'Light moda geç' : 'Dark moda geç'} style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:700 }}>
+            {tema.mode === 'dark' ? <Sun size={12} strokeWidth={2.1} /> : <Moon size={12} strokeWidth={2.1} />} {tema.mode === 'dark' ? 'Light' : 'Dark'}
+          </button>
           <button onClick={() => setKaynaklarAcik(true)} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:600 }}>
             <BookOpen size={12} strokeWidth={2.1} /> Kaynaklarım
           </button>
@@ -2365,7 +2061,7 @@ export default function Home() {
       </div>
 
       {/* İlerleme */}
-      <div style={{ background:tema.card, borderRadius:14, padding: isMobile ? '16px' : '18px 20px', marginBottom:'1rem', border:`1px solid ${tema.border}`, boxShadow: arkaPlanStili === 'balanced' ? 'none' : tema.hoverShadow, display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(260px, 1.05fr) minmax(420px, 1.6fr)', alignItems:'center', gap: isMobile ? 16 : 24 }}>
+      <div style={{ background:tema.card, borderRadius:14, padding: isMobile ? '16px' : '18px 20px', marginBottom:'1rem', border:`1px solid ${tema.border}`, boxShadow:'none', display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(260px, 1.05fr) minmax(420px, 1.6fr)', alignItems:'center', gap: isMobile ? 16 : 24 }}>
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
           <div style={{ width:72, height:72, borderRadius:'50%', background:`conic-gradient(${tema.primary} ${yuzde * 3.6}deg, ${tema.border} 0deg)`, display:'flex', alignItems:'center', justifyContent:'center', flex:'0 0 auto', boxShadow:`0 0 0 1px ${tema.border}` }}>
             <div style={{ width:54, height:54, borderRadius:'50%', background:tema.card, display:'flex', alignItems:'center', justifyContent:'center', color:tema.textStrong, fontSize:15, fontWeight:800 }}>

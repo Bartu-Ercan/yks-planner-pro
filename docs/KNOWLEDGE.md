@@ -14,8 +14,8 @@
 - Ana tablo `gorevler`.
 - RLS kullanıcı bazlıdır.
 - Misafir görevleri `localStorage` içinde saklanır.
-- Tema tercihi `localStorage` içinde `yks-tema` anahtarıyla saklanır; tema sistemi 6 dark ve 6 light seçenekten oluşur.
-- Font tercihi `yks-font`, arka plan modu `yks-bg-style`, cursor tercihi `yks-cursor` anahtarıyla saklanır.
+- Tema tercihi `localStorage` içinde `yks-tema` anahtarıyla saklanır; tema sistemi 6 Flat UI Colors paleti üstünde toplam 72 seçenekten oluşur.
+- Font tercihi `yks-font`, cursor tercihi `yks-cursor` anahtarıyla saklanır. Eski `yks-bg-style` değeri artık kullanılmaz.
 - Fontlar `next/font` ile build sırasında self-host edilir.
 
 ## Planner Notları
