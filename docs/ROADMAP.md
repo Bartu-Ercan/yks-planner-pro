@@ -7,11 +7,12 @@
 - Supabase ve Vercel deploy akışını netleştir.
 - Auth ve misafir kullanıcı geçişini daha güvenilir hale getir.
 - Günlük odak görünümü ve not arşivini haftalık planner çizgisini bozmadan güçlendir.
+- Kaynak kitap sisteminin ilk katalog ve görev bağlantısı akışını doğrula.
 
 ## Orta Vade
 
 - Ders ve konu yönetimini daha esnek hale getir.
-- Kaynak kitap kütüphanesi ve kapak görselli hazırlık akışını kur.
+- Kaynak kitap kütüphanesine kullanıcı kaynak ekleme ve kapak yükleme akışı ekle.
 - Haftalık ve aylık performans raporları ekle.
 - Plan tekrarları ve rutin görevleri güçlendir.
 - Mobil kullanım ergonomisini iyileştir.

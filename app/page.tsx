@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { KAYNAK_DERSLER, KAYNAK_KATALOGU, KAYNAK_YAYINEVLERI, type KaynakKatalogItem, type SinavTuru } from '@/lib/kaynak-katalogu'
 import type { User } from '@supabase/supabase-js'
 
 const DERSLER = ['TYT Mat','TYT Türkçe','TYT Fen','TYT Sosyal','TYT Genel Deneme','AYT Mat','AYT Fizik','AYT Kimya','AYT Bio','AYT Edebiyat','AYT Tarih','AYT Genel Deneme']
@@ -36,6 +37,7 @@ interface Gorev {
   user_id?: string
   ders: string
   konu: string
+  kaynak_id?: string | null
   gun: number
   hafta: string
   tamam: boolean
@@ -58,12 +60,7 @@ interface GunlukNot {
   created_at: string
 }
 
-interface Kaynak {
-  id: string
-  ad: string
-  ders: string
-  kapak_url?: string
-}
+type Kaynak = KaynakKatalogItem
 
 interface Tema {
   name: string
@@ -152,21 +149,6 @@ const CURSORLAR: Record<CursorKey, CursorSecenegi> = {
     tone: 'Kapalı',
     preview: 'Mac imleci kullan'
   },
-}
-
-const ORNEK_KAYNAKLAR: Record<string, Kaynak> = {
-  'TYT Mat': { id: 'tyt-mat-3d', ad: '3D TYT Matematik', ders: 'TYT Mat' },
-  'TYT Türkçe': { id: 'tyt-turkce-not', ad: 'Türkçe konu notları', ders: 'TYT Türkçe' },
-  'TYT Fen': { id: 'tyt-fen-kaynak', ad: 'TYT Fen soru bankası', ders: 'TYT Fen' },
-  'TYT Sosyal': { id: 'tyt-sosyal-kaynak', ad: 'TYT Sosyal tekrar', ders: 'TYT Sosyal' },
-  'TYT Genel Deneme': { id: 'tyt-deneme-defteri', ad: 'Deneme defteri', ders: 'TYT Genel Deneme' },
-  'AYT Mat': { id: 'ayt-mat-kaynak', ad: 'AYT Matematik soru bankası', ders: 'AYT Mat' },
-  'AYT Fizik': { id: 'ayt-fizik-paraf', ad: 'Paraf AYT Fizik', ders: 'AYT Fizik' },
-  'AYT Kimya': { id: 'ayt-kimya-kaynak', ad: 'AYT Kimya fasikül', ders: 'AYT Kimya' },
-  'AYT Bio': { id: 'ayt-bio-kaynak', ad: 'AYT Biyoloji kaynak', ders: 'AYT Bio' },
-  'AYT Edebiyat': { id: 'ayt-edebiyat-kaynak', ad: 'AYT Edebiyat notları', ders: 'AYT Edebiyat' },
-  'AYT Tarih': { id: 'ayt-tarih-kaynak', ad: 'AYT Tarih tekrar', ders: 'AYT Tarih' },
-  'AYT Genel Deneme': { id: 'ayt-deneme-defteri', ad: 'AYT deneme defteri', ders: 'AYT Genel Deneme' },
 }
 
 const TEMALAR: Record<string, Tema> = {
@@ -566,6 +548,7 @@ export default function Home() {
   const [ekleGun, setEkleGun] = useState<number | null>(null)
   const [formKonu, setFormKonu] = useState('')
   const [formDers, setFormDers] = useState('TYT Mat')
+  const [formKaynakId, setFormKaynakId] = useState('')
   const [topluAcik, setTopluAcik] = useState(false)
   const [topluKonu, setTopluKonu] = useState('')
   const [topluDers, setTopluDers] = useState('TYT Mat')
@@ -580,6 +563,14 @@ export default function Home() {
   const [gunlukNotlar, setGunlukNotlar] = useState<GunlukNot[]>([])
   const [notlarAcik, setNotlarAcik] = useState(false)
   const [notInput, setNotInput] = useState('')
+  const [kaynaklarAcik, setKaynaklarAcik] = useState(false)
+  const [onboardingAcik, setOnboardingAcik] = useState(false)
+  const [onboardingAdim, setOnboardingAdim] = useState(0)
+  const [aktifKaynakSinav, setAktifKaynakSinav] = useState<SinavTuru>('TYT')
+  const [aktifKaynakDers, setAktifKaynakDers] = useState('TYT Mat')
+  const [aktifKaynakYayinevi, setAktifKaynakYayinevi] = useState('Tümü')
+  const [kullaniciKaynakIds, setKullaniciKaynakIds] = useState<string[]>([])
+  const [sonKaynakSecimi, setSonKaynakSecimi] = useState<Record<string, string>>({})
   const [editKonu, setEditKonu] = useState('')
   const [editDers, setEditDers] = useState('')
   const [bitmeyenAcik, setBitmeyenAcik] = useState(false)
@@ -666,6 +657,15 @@ export default function Home() {
     setTimeout(() => setBildirim(null), 1500)
   }
 
+  const parseJson = <T,>(value: string | null, fallback: T): T => {
+    if (!value) return fallback
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      return fallback
+    }
+  }
+
   const closeOnBackdrop = (event: React.MouseEvent<HTMLDivElement>, close: () => void) => {
     if (event.target === event.currentTarget) close()
   }
@@ -726,6 +726,126 @@ export default function Home() {
     setTasimaHedef(yarinIndex >= 0 ? yarinIndex : 0)
     setBitmeyenAcik(v => !v)
     setTopluAcik(false)
+  }
+
+  const getVarsayilanKaynakId = (ders: string) => {
+    const uygunKaynaklar = KAYNAK_KATALOGU.filter(kaynak => kaynak.ders === ders && kullaniciKaynakIds.includes(kaynak.id))
+    const sonSecim = sonKaynakSecimi[ders]
+    return sonSecim && uygunKaynaklar.some(kaynak => kaynak.id === sonSecim) ? sonSecim : ''
+  }
+
+  const formDersDegistir = (ders: string) => {
+    setFormDers(ders)
+    setFormKaynakId(getVarsayilanKaynakId(ders))
+  }
+
+  const kaynakSinavDegistir = (sinav: SinavTuru) => {
+    const dersler = KAYNAK_DERSLER.filter(ders => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === sinav && kaynak.ders === ders))
+    setAktifKaynakSinav(sinav)
+    setAktifKaynakDers(dersler[0] || 'TYT Mat')
+    setAktifKaynakYayinevi('Tümü')
+  }
+
+  const saveGuestKaynakTercihleri = (ids: string[], sonSecimler = sonKaynakSecimi) => {
+    localStorage.setItem('yks-kullanici-kaynaklari', JSON.stringify(ids))
+    localStorage.setItem('yks-son-kaynak-secimi', JSON.stringify(sonSecimler))
+  }
+
+  const syncUserKaynakTercihleri = async (tamamlandi?: boolean, sonSecimler = sonKaynakSecimi) => {
+    if (!user) return
+    const payload: {
+      user_id: string
+      onboarding_tamamlandi?: boolean
+      son_kaynak_secimi: Record<string, string>
+      updated_at: string
+    } = {
+      user_id: user.id,
+      son_kaynak_secimi: sonSecimler,
+      updated_at: new Date().toISOString()
+    }
+    if (typeof tamamlandi === 'boolean') payload.onboarding_tamamlandi = tamamlandi
+
+    const { error } = await supabase
+      .from('kullanici_tercihleri')
+      .upsert(payload, { onConflict: 'user_id' })
+    if (error) console.warn('Kaynak tercihleri kaydedilemedi:', error.message)
+  }
+
+  const loadKaynakTercihleri = async (currentUser: User | null) => {
+    if (!currentUser) {
+      setKullaniciKaynakIds(parseJson<string[]>(localStorage.getItem('yks-kullanici-kaynaklari'), []))
+      setSonKaynakSecimi(parseJson<Record<string, string>>(localStorage.getItem('yks-son-kaynak-secimi'), {}))
+      setOnboardingAcik(localStorage.getItem('yks-onboarding-tamam') !== '1')
+      return
+    }
+
+    const { data: kaynakData, error: kaynakError } = await supabase
+      .from('kullanici_kaynaklari')
+      .select('kaynak_id')
+      .eq('user_id', currentUser.id)
+
+    if (kaynakError) {
+      console.warn('Kullanıcı kaynakları yüklenemedi:', kaynakError.message)
+      setKullaniciKaynakIds(parseJson<string[]>(localStorage.getItem('yks-kullanici-kaynaklari'), []))
+    } else {
+      setKullaniciKaynakIds((kaynakData || []).map(kaynak => kaynak.kaynak_id as string))
+    }
+
+    const { data: tercihData, error: tercihError } = await supabase
+      .from('kullanici_tercihleri')
+      .select('onboarding_tamamlandi, son_kaynak_secimi')
+      .eq('user_id', currentUser.id)
+      .maybeSingle()
+
+    if (tercihError) {
+      console.warn('Kullanıcı tercihleri yüklenemedi:', tercihError.message)
+      setSonKaynakSecimi(parseJson<Record<string, string>>(localStorage.getItem('yks-son-kaynak-secimi'), {}))
+      setOnboardingAcik(localStorage.getItem('yks-onboarding-tamam') !== '1')
+      return
+    }
+
+    setSonKaynakSecimi((tercihData?.son_kaynak_secimi as Record<string, string> | null) || {})
+    setOnboardingAcik(!(tercihData?.onboarding_tamamlandi))
+  }
+
+  const onboardingKapat = async () => {
+    setOnboardingAcik(false)
+    localStorage.setItem('yks-onboarding-tamam', '1')
+    await syncUserKaynakTercihleri(true)
+  }
+
+  const kaynakSecimiDegistir = async (kaynakId: string) => {
+    const selected = kullaniciKaynakIds.includes(kaynakId)
+    const nextIds = selected ? kullaniciKaynakIds.filter(id => id !== kaynakId) : [...kullaniciKaynakIds, kaynakId]
+    setKullaniciKaynakIds(nextIds)
+    const kaynak = KAYNAK_KATALOGU.find(k => k.id === kaynakId)
+    if (!selected && kaynak?.ders === formDers && !formKaynakId) setFormKaynakId(kaynakId)
+    if (selected && formKaynakId === kaynakId) setFormKaynakId('')
+
+    if (!user) {
+      saveGuestKaynakTercihleri(nextIds)
+    } else if (selected) {
+      const { error } = await supabase
+        .from('kullanici_kaynaklari')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('kaynak_id', kaynakId)
+      if (error) console.warn('Kaynak çıkarılamadı:', error.message)
+    } else {
+      const { error } = await supabase
+        .from('kullanici_kaynaklari')
+        .insert({ user_id: user.id, kaynak_id: kaynakId })
+      if (error) console.warn('Kaynak eklenemedi:', error.message)
+    }
+  }
+
+  const handleFormKaynakSec = async (kaynakId: string) => {
+    setFormKaynakId(kaynakId)
+    if (!kaynakId) return
+    const next = { ...sonKaynakSecimi, [formDers]: kaynakId }
+    setSonKaynakSecimi(next)
+    if (!user) saveGuestKaynakTercihleri(kullaniciKaynakIds, next)
+    await syncUserKaynakTercihleri(undefined, next)
   }
 
   const kopyaBaslat = (gorev: Gorev, e: React.MouseEvent<HTMLButtonElement>) => {
@@ -921,6 +1041,7 @@ export default function Home() {
       setUser(user)
       loadGorevler(user)
       loadGunlukNotlar(user)
+      loadKaynakTercihleri(user)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -929,11 +1050,13 @@ export default function Home() {
       if (u) {
         loadGorevler(u)
         loadGunlukNotlar(u)
+        loadKaynakTercihleri(u)
         // Migrate guest tasks if needed
         migrateGuestTasks(u)
       } else {
         loadGorevler(null)
         loadGunlukNotlar(null)
+        loadKaynakTercihleri(null)
       }
     })
 
@@ -1040,6 +1163,7 @@ export default function Home() {
     const yeniGorev: Omit<Gorev, 'id' | 'created_at'> = {
       ders: formDers,
       konu: formKonu.trim(),
+      kaynak_id: formKaynakId || null,
       gun: hedefGun.gun,
       hafta: hedefGun.hafta,
       tamam: false,
@@ -1063,6 +1187,7 @@ export default function Home() {
     }
 
     setFormKonu('')
+    setFormKaynakId('')
     setEkleGun(null)
   }
 
@@ -1079,6 +1204,7 @@ export default function Home() {
         id: `${Date.now()}-${i}-${hedef.hafta}-${hedef.gun}`,
         ders: topluDers,
         konu: topluKonu.trim(),
+        kaynak_id: null,
         gun: hedef.gun,
         hafta: hedef.hafta,
         tamam: false,
@@ -1093,6 +1219,7 @@ export default function Home() {
       const toInsert = hedefGunler.map(hedef => ({
         ders: topluDers,
         konu: topluKonu.trim(),
+        kaynak_id: null,
         gun: hedef.gun,
         hafta: hedef.hafta,
         tamam: false,
@@ -1120,6 +1247,7 @@ export default function Home() {
     const yeniGorev: Omit<Gorev, 'id' | 'created_at'> = {
       ders: kopyaDrag.ders,
       konu: kopyaDrag.konu,
+      kaynak_id: kopyaDrag.kaynak_id || null,
       gun: hedefGun.gun,
       hafta: hedefGun.hafta,
       tamam: false,
@@ -1238,7 +1366,7 @@ export default function Home() {
   const detayKaydet = async () => {
     if (!detayModal || !editKonu.trim()) return
 
-    const updatedData = { konu: editKonu.trim(), ders: editDers }
+    const updatedData = { konu: editKonu.trim(), ders: editDers, kaynak_id: editDers === detayModal.ders ? detayModal.kaynak_id || null : null }
 
     if (!user) {
       const updated = gorevler.map(g =>
@@ -1398,9 +1526,20 @@ export default function Home() {
   const seciliGunYuzde = seciliGunGorevleri.length ? Math.round((seciliGunTamam / seciliGunGorevleri.length) * 100) : 0
   const seciliGunSure = seciliGunGorevleri.filter(g => g.tamam).reduce((toplam, g) => toplam + (g.gercek_sure || 0), 0)
   const seciliGunNotlari = seciliGunTarihId ? gunlukNotlar.filter(n => n.tarih === seciliGunTarihId) : []
+  const kullaniciKaynaklari = KAYNAK_KATALOGU.filter(kaynak => kullaniciKaynakIds.includes(kaynak.id))
+  const formKaynaklari = kullaniciKaynaklari.filter(kaynak => kaynak.ders === formDers)
+  const filtreDersleri = KAYNAK_DERSLER.filter(ders => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === aktifKaynakSinav && kaynak.ders === ders))
+  const filtreYayinevleri = ['Tümü', ...KAYNAK_YAYINEVLERI.filter(yayinevi => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === aktifKaynakSinav && kaynak.yayinevi === yayinevi))]
+  const katalogFiltreli = KAYNAK_KATALOGU.filter(kaynak =>
+    kaynak.sinav === aktifKaynakSinav &&
+    kaynak.ders === aktifKaynakDers &&
+    (aktifKaynakYayinevi === 'Tümü' || kaynak.yayinevi === aktifKaynakYayinevi)
+  )
   const kaynaklariGetir = (tasks: Gorev[]) => {
-    const dersler = Array.from(new Set(tasks.map(g => g.ders)))
-    return dersler.map(ders => ORNEK_KAYNAKLAR[ders] || { id: `kaynak-${ders}`, ad: `${ders} kaynağı`, ders })
+    const kaynakIds = Array.from(new Set(tasks.map(g => g.kaynak_id).filter(Boolean))) as string[]
+    return kaynakIds
+      .map(id => KAYNAK_KATALOGU.find(kaynak => kaynak.id === id))
+      .filter(Boolean) as Kaynak[]
   }
   const seciliGunKaynaklari = kaynaklariGetir(seciliGunGorevleri)
   const formatGunTarihi = (date: Date) =>
@@ -1421,6 +1560,38 @@ export default function Home() {
       setGunOffset(o => o + 1)
     }
   }
+
+  const renderKaynakSecici = () => (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+        <p style={{ margin:0, fontSize:10, color:tema.faint, fontWeight:700 }}>Kaynak</p>
+        <button type="button" onClick={() => setKaynaklarAcik(true)} style={{ background:'none', border:'none', color:tema.primaryLight, cursor:'pointer', fontSize:10, fontWeight:700, padding:0 }}>Kaynaklarım</button>
+      </div>
+      {formKaynaklari.length === 0 ? (
+        <button type="button" onClick={() => setKaynaklarAcik(true)} className="btn-hover" style={{ padding:'10px 11px', border:`1px dashed ${tema.border}`, borderRadius:10, background:tema.card, color:tema.faint, fontSize:11, textAlign:'left', cursor:'pointer' }}>
+          Bu ders için kaynak seçilmemiş.
+        </button>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
+          <button type="button" onClick={() => setFormKaynakId('')} className="btn-hover" style={{ minHeight:58, padding:'9px 8px', border:`1px solid ${formKaynakId === '' ? tema.primary : tema.border}`, borderRadius:10, background:tema.card, color:formKaynakId === '' ? tema.primaryLight : tema.faint, cursor:'pointer', fontSize:11, fontWeight:700 }}>
+            Kaynaksız
+          </button>
+          {formKaynaklari.slice(0, 5).map(kaynak => {
+            const active = formKaynakId === kaynak.id
+            return (
+              <button key={kaynak.id} type="button" onClick={() => handleFormKaynakSec(kaynak.id)} className="btn-hover" style={{ display:'flex', gap:8, alignItems:'center', minHeight:58, padding:'7px 8px', border:`1px solid ${active ? tema.primary : tema.border}`, borderRadius:10, background:active ? `${tema.primary}12` : tema.card, color:tema.text, cursor:'pointer', textAlign:'left', overflow:'hidden' }}>
+                <span style={{ width:30, height:40, borderRadius:6, background:`url(${kaynak.kapak_url}) center / cover`, border:`1px solid ${tema.border}`, flex:'0 0 auto' }} />
+                <span style={{ minWidth:0 }}>
+                  <span style={{ display:'block', fontSize:10, color:active ? tema.primaryLight : tema.text, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.ad}</span>
+                  <span style={{ display:'block', marginTop:2, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div
@@ -1820,6 +1991,7 @@ export default function Home() {
                 })}
               </div>
             ) : (
+              <>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
                 {[
                   ['text', 'Yazı', 'Kaynaklar sade liste olarak görünür.', <Type key="type" size={18} strokeWidth={2.1} />],
@@ -1858,6 +2030,14 @@ export default function Home() {
                   )
                 })}
               </div>
+              <button
+                onClick={() => { setOnboardingAdim(0); setOnboardingAcik(true); setAyarlarAcik(false) }}
+                className="btn-hover"
+                style={{ ...compactActionStyle, width:'100%', marginTop:14, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}
+              >
+                <BookOpen {...iconProps} /> başlangıç rehberini tekrar aç
+              </button>
+              </>
             )}
           </div>
         </div>
@@ -1897,6 +2077,105 @@ export default function Home() {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* KAYNAKLARIM */}
+      {kaynaklarAcik && (
+        <div onMouseDown={(e) => closeOnBackdrop(e, () => setKaynaklarAcik(false))} className="slide-in" style={{ position:'fixed', inset:0, zIndex:2100, background:tema.overlay, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:20, padding:isMobile ? '22px 18px' : '28px 30px', maxWidth:920, width:'100%', maxHeight:'86vh', overflowY:'auto', boxShadow:tema.shadow }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18, gap:12 }}>
+              <div>
+                <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase', fontWeight:700 }}>Kaynak Kitap Sistemi</p>
+                <p style={{ margin:'5px 0 0', fontSize:20, color:tema.textStrong, fontWeight:800 }}>Kaynaklarım</p>
+              </div>
+              <button onClick={() => setKaynaklarAcik(false)} className="btn-hover icon-only" aria-label="kapat" title="kapat" style={{ ...iconButtonStyle, background:tema.cardSoft }}><X size={16} strokeWidth={2.2} /></button>
+            </div>
+
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
+              {(['TYT', 'AYT'] as SinavTuru[]).map(sinav => (
+                <button key={sinav} onClick={() => kaynakSinavDegistir(sinav)} className="btn-hover" style={{ ...compactActionStyle, background:aktifKaynakSinav === sinav ? tema.primary : tema.cardSoft, border:`1px solid ${aktifKaynakSinav === sinav ? tema.primary : tema.border}`, color:aktifKaynakSinav === sinav ? tema.onPrimary : tema.muted }}>
+                  {sinav}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'minmax(180px, 220px) minmax(180px, 220px) 1fr', gap:10, alignItems:'center', marginBottom:16 }}>
+              <select value={aktifKaynakDers} onChange={e => { setAktifKaynakDers(e.target.value); setAktifKaynakYayinevi('Tümü') }} style={{ fontSize:12, padding:'11px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, appearance:'none', WebkitAppearance:'none' }}>
+                {filtreDersleri.map(ders => <option key={ders}>{ders}</option>)}
+              </select>
+              <select value={aktifKaynakYayinevi} onChange={e => setAktifKaynakYayinevi(e.target.value)} style={{ fontSize:12, padding:'11px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, appearance:'none', WebkitAppearance:'none' }}>
+                {filtreYayinevleri.map(yayinevi => <option key={yayinevi}>{yayinevi}</option>)}
+              </select>
+              <p style={{ margin:0, fontSize:11, color:tema.faint, textAlign:isMobile ? 'left' : 'right' }}>{kullaniciKaynakIds.length} kaynak seçili</p>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap:10 }}>
+              {katalogFiltreli.map(kaynak => {
+                const selected = kullaniciKaynakIds.includes(kaynak.id)
+                return (
+                  <button key={kaynak.id} onClick={() => kaynakSecimiDegistir(kaynak.id)} className="btn-hover" style={{ border:`1px solid ${selected ? tema.primary : tema.border}`, borderRadius:12, background:selected ? `${tema.primary}12` : tema.cardSoft, color:tema.text, cursor:'pointer', padding:0, overflow:'hidden', textAlign:'left', position:'relative' }}>
+                    <div style={{ aspectRatio:'3 / 4', background:`url(${kaynak.kapak_url}) center / cover`, borderBottom:`1px solid ${tema.border}` }} />
+                    <div style={{ padding:'10px 10px 11px' }}>
+                      <p style={{ margin:'0 0 5px', fontSize:11, color:tema.textStrong, fontWeight:800, lineHeight:1.3 }}>{kaynak.ad}</p>
+                      <p style={{ margin:0, fontSize:10, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</p>
+                    </div>
+                    {selected && (
+                      <span style={{ position:'absolute', top:8, right:8, width:22, height:22, borderRadius:'50%', background:tema.primary, color:tema.onPrimary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <Check size={13} strokeWidth={2.4} />
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BAŞLANGIÇ KURULUMU */}
+      {onboardingAcik && (
+        <div onMouseDown={(e) => closeOnBackdrop(e, onboardingKapat)} className="slide-in" style={{ position:'fixed', inset:0, zIndex:2200, background:tema.overlay, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:20, padding:isMobile ? '24px 20px' : '30px 34px', maxWidth:560, width:'100%', boxShadow:tema.shadow }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:18 }}>
+              <div>
+                <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase', fontWeight:700 }}>Başlangıç</p>
+                <p style={{ margin:'5px 0 0', fontSize:21, color:tema.textStrong, fontWeight:800 }}>YKS Planner Pro kurulumu</p>
+              </div>
+              <button onClick={onboardingKapat} className="btn-hover icon-only" aria-label="atla" title="atla" style={{ ...iconButtonStyle, background:tema.cardSoft }}><X size={16} strokeWidth={2.2} /></button>
+            </div>
+
+            {[
+              ['Temel kullanım', 'Haftalık ekranda günleri yan yana görürsün. Görevleri sürükleyebilir, tamamlayabilir ve süre girebilirsin.'],
+              ['Günlük görünüm', 'Bir gün başlığına tıklayınca sadece o güne odaklanan panel açılır. Not ve hazırlık burada kalır.'],
+              ['Kaynak seçimi', 'Kaynaklarım alanından elindeki TYT/AYT kitaplarını kapaklı katalogdan seç.'],
+              ['Göreve kaynak bağlama', 'Görev eklerken dersin altındaki kaynak alanı sadece o derse uygun kitapları gösterir.'],
+            ].map(([title, desc], index) => (
+              onboardingAdim === index && (
+                <div key={title} style={{ padding:'18px 18px', border:`1px solid ${tema.border}`, borderRadius:14, background:tema.cardSoft, marginBottom:16 }}>
+                  <p style={{ margin:'0 0 8px', fontSize:16, color:tema.textStrong, fontWeight:800 }}>{title}</p>
+                  <p style={{ margin:0, fontSize:13, color:tema.muted, lineHeight:1.6 }}>{desc}</p>
+                </div>
+              )
+            ))}
+
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+              <div style={{ display:'flex', gap:6 }}>
+                {[0, 1, 2, 3].map(index => (
+                  <span key={index} style={{ width:index === onboardingAdim ? 18 : 7, height:7, borderRadius:99, background:index === onboardingAdim ? tema.primary : tema.border, transition:'all 0.18s' }} />
+                ))}
+              </div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                <button onClick={onboardingKapat} className="btn-hover" style={{ ...compactActionStyle, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}>atla</button>
+                {onboardingAdim === 2 && (
+                  <button onClick={() => setKaynaklarAcik(true)} className="btn-hover" style={{ ...compactActionStyle, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}><BookOpen {...iconProps} /> kaynak seç</button>
+                )}
+                <button onClick={() => onboardingAdim === 3 ? onboardingKapat() : setOnboardingAdim(adim => adim + 1)} className="btn-hover" style={{ ...compactActionStyle, background:tema.primary, border:'none', color:tema.onPrimary }}>
+                  {onboardingAdim === 3 ? 'bitir' : 'ileri'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1957,9 +2236,10 @@ export default function Home() {
                   <div className="slide-in" style={{ padding:'14px 12px', border:`1px solid ${tema.border}`, borderRadius:12, background:tema.cardSoft, display:'flex', flexDirection:'column', gap:10 }}>
                     <input autoFocus value={formKonu} onChange={e => setFormKonu(e.target.value)} onKeyDown={e => { if(e.key==='Enter') ekle(); if(e.key==='Escape') setEkleGun(null); }} placeholder="ne çalışacaksın?..."
                       style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.text, fontSize:15, padding:'14px 14px', outline:'none', width:'100%', boxSizing:'border-box' }} />
-                    <select value={formDers} onChange={e => setFormDers(e.target.value)} style={{ fontSize:13, padding:'12px 12px', background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, width:'100%', boxSizing:'border-box', appearance:'none', WebkitAppearance:'none' }}>
+                    <select value={formDers} onChange={e => formDersDegistir(e.target.value)} style={{ fontSize:13, padding:'12px 12px', background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, width:'100%', boxSizing:'border-box', appearance:'none', WebkitAppearance:'none' }}>
                       {DERSLER.map(d => <option key={d}>{d}</option>)}
                     </select>
+                    {renderKaynakSecici()}
                     <div style={{ display:'flex', gap:8 }}>
                       <button onClick={() => setEkleGun(null)} className="btn-hover" style={{ ...modalActionStyle, flex:1, fontSize:13, padding:'12px 0', background:tema.card, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
                       <button onClick={ekle} className="btn-hover" style={{ ...modalActionStyle, flex:1, fontSize:13, padding:'12px 0', background:tema.primary, border:'none', color:tema.onPrimary }}><Plus {...iconProps} /> ekle</button>
@@ -1981,7 +2261,6 @@ export default function Home() {
                           <span style={{ fontSize:11, color:tema.faint, fontWeight:600 }}>{gs > 0 ? `${gs}dk` : '—'}</span>
                           <div style={{ display:'flex', gap:5 }}>
                             <button onClick={() => tickla(g)} className="btn-hover icon-only" title={g.tamam ? 'tamamlandı' : 'tamamla'} aria-label={g.tamam ? 'görev tamamlandı' : 'görevi tamamla'} style={{ width:24, height:24, borderRadius:7, border:g.tamam ? 'none' : `2px solid ${tema.border}`, background:g.tamam ? renk : 'transparent', color:g.tamam ? '#000' : tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}>{g.tamam && <Check size={13} strokeWidth={2.4} />}</button>
-                            <button onClick={(e) => kopyaBaslat(g, e)} className="btn-hover icon-only task-action task-action-copy" title="çoğalt" aria-label="görevi çoğalt" style={{ width:24, height:24, borderRadius:7, background:'transparent', border:'none', color:tema.faint, cursor:'copy', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Copy size={14} strokeWidth={2.1} /></button>
                             <button onClick={() => sil(g.id)} className="btn-hover icon-only task-action task-action-delete" title="sil" aria-label="görevi sil" style={{ width:24, height:24, borderRadius:7, background:'transparent', border:'none', color:tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Trash2 size={14} strokeWidth={2.1} /></button>
                           </div>
                         </div>
@@ -2067,6 +2346,9 @@ export default function Home() {
         </div>
 
         <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, order: isMobile ? 0 : 0 }}>
+          <button onClick={() => setKaynaklarAcik(true)} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:600 }}>
+            <BookOpen size={12} strokeWidth={2.1} /> Kaynaklarım
+          </button>
           <button onClick={() => setNotlarAcik(true)} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:600 }}>
             <Archive size={12} strokeWidth={2.1} /> Notlar
           </button>
@@ -2268,9 +2550,10 @@ export default function Home() {
                 <div className="slide-in" style={{ padding:'14px 12px', border:`1px solid ${tema.border}`, borderRadius:12, background:tema.cardSoft, display:'flex', flexDirection:'column', gap:10 }}>
                   <input autoFocus value={formKonu} onChange={e => setFormKonu(e.target.value)} onKeyDown={e => { if(e.key==='Enter') ekle(); if(e.key==='Escape') setEkleGun(null); }} placeholder="ne çalışacaksın?..."
                     style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.text, fontSize:15, padding:'14px 14px', outline:'none', width:'100%', boxSizing:'border-box' }} />
-                  <select value={formDers} onChange={e => setFormDers(e.target.value)} style={{ fontSize:13, padding:'12px 12px', background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, width:'100%', boxSizing:'border-box', appearance:'none', WebkitAppearance:'none' }}>
+                  <select value={formDers} onChange={e => formDersDegistir(e.target.value)} style={{ fontSize:13, padding:'12px 12px', background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, width:'100%', boxSizing:'border-box', appearance:'none', WebkitAppearance:'none' }}>
                     {DERSLER.map(d => <option key={d}>{d}</option>)}
                   </select>
+                  {renderKaynakSecici()}
                   <div style={{ display:'flex', gap:8 }}>
                     <button onClick={() => setEkleGun(null)} className="btn-hover" style={{ ...modalActionStyle, flex:1, fontSize:13, padding:'12px 0', background:tema.card, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
                     <button onClick={ekle} className="btn-hover" style={{ ...modalActionStyle, flex:1, fontSize:13, padding:'12px 0', background:tema.primary, border:'none', color:tema.onPrimary }}><Plus {...iconProps} /> ekle</button>
