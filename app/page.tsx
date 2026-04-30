@@ -53,6 +53,7 @@ type AyarSekmesi = 'tema' | 'font' | 'cursor' | 'kaynak'
 type FontKey = 'dmMono' | 'geistMono' | 'jetBrainsMono' | 'ibmPlexMono' | 'spaceGrotesk' | 'manrope'
 type CursorKey = 'minimal' | 'system'
 type KaynakGorunumu = 'text' | 'visual'
+type KaynaklarSekmesi = 'katalog' | 'secili'
 
 interface GunlukNot {
   id: string
@@ -260,6 +261,7 @@ export default function Home() {
   const [notlarAcik, setNotlarAcik] = useState(false)
   const [notInput, setNotInput] = useState('')
   const [kaynaklarAcik, setKaynaklarAcik] = useState(false)
+  const [kaynaklarSekme, setKaynaklarSekme] = useState<KaynaklarSekmesi>('katalog')
   const [misafirModu, setMisafirModu] = useState(false)
   const [setupAcik, setSetupAcik] = useState(false)
   const [setupAdim, setSetupAdim] = useState(0)
@@ -1344,11 +1346,18 @@ export default function Home() {
     (aktifKaynakDers === KAYNAK_DERS_TUMU || kaynak.ders === aktifKaynakDers) &&
     (aktifKaynakYayinevi === 'Tümü' || kaynak.yayinevi === aktifKaynakYayinevi)
   ).sort(kaynakSirala)
+  const kaynakModalListesi = kaynaklarSekme === 'secili' ? kullaniciKaynaklari : katalogFiltreli
   const kaynaklariGetir = (tasks: Gorev[]) => {
-    const kaynakIds = Array.from(new Set(tasks.map(g => g.kaynak_id).filter(Boolean))) as string[]
+    const direktKaynakIds = tasks.map(g => g.kaynak_id).filter(Boolean) as string[]
+    const gorevDersleri = Array.from(new Set(tasks.map(g => g.ders)))
+    const dersKaynakIds = kullaniciKaynaklari
+      .filter(kaynak => gorevDersleri.includes(kaynak.ders))
+      .map(kaynak => kaynak.id)
+    const kaynakIds = Array.from(new Set([...direktKaynakIds, ...dersKaynakIds]))
     return kaynakIds
       .map(id => KAYNAK_KATALOGU.find(kaynak => kaynak.id === id))
-      .filter(Boolean) as Kaynak[]
+      .filter((kaynak): kaynak is Kaynak => Boolean(kaynak))
+      .sort(kaynakSirala)
   }
   const seciliGunKaynaklari = kaynaklariGetir(seciliGunGorevleri)
   const formatGunTarihi = (date: Date) =>
@@ -2114,6 +2123,24 @@ export default function Home() {
               <button onClick={() => setKaynaklarAcik(false)} className="btn-hover icon-only" aria-label="kapat" title="kapat" style={{ ...iconButtonStyle, background:tema.cardSoft }}><X size={16} strokeWidth={2.2} /></button>
             </div>
 
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, padding:4, marginBottom:14, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
+              {([
+                ['katalog', 'Katalog'],
+                ['secili', `Seçilen kaynaklar (${kullaniciKaynakIds.length})`],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setKaynaklarSekme(key)}
+                  className="btn-hover"
+                  style={{ padding:'10px 0', border:'none', borderRadius:8, background:kaynaklarSekme === key ? tema.primary : 'transparent', color:kaynaklarSekme === key ? tema.onPrimary : tema.muted, cursor:'pointer', fontSize:12, fontWeight:800 }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {kaynaklarSekme === 'katalog' && (
+              <>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
               {(['TYT', 'AYT'] as SinavTuru[]).map(sinav => (
                 <button key={sinav} onClick={() => kaynakSinavDegistir(sinav)} className="btn-hover" style={{ ...compactActionStyle, background:aktifKaynakSinav === sinav ? tema.primary : tema.cardSoft, border:`1px solid ${aktifKaynakSinav === sinav ? tema.primary : tema.border}`, color:aktifKaynakSinav === sinav ? tema.onPrimary : tema.muted }}>
@@ -2131,9 +2158,15 @@ export default function Home() {
               </select>
               <p style={{ margin:0, fontSize:11, color:tema.faint, textAlign:isMobile ? 'left' : 'right' }}>{kullaniciKaynakIds.length} kaynak seçili</p>
             </div>
+              </>
+            )}
 
             <div style={{ display:'grid', gridTemplateColumns:isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap:10 }}>
-              {katalogFiltreli.map(kaynak => {
+              {kaynakModalListesi.length === 0 ? (
+                <div style={{ gridColumn:'1 / -1', padding:'26px 18px', border:`1px dashed ${tema.border}`, borderRadius:14, background:tema.cardSoft, color:tema.faint, textAlign:'center', fontSize:13 }}>
+                  Henüz seçilen kaynak yok.
+                </div>
+              ) : kaynakModalListesi.map(kaynak => {
                 const selected = kullaniciKaynakIds.includes(kaynak.id)
                 return (
                   <button key={kaynak.id} onClick={() => kaynakSecimiDegistir(kaynak.id)} className="btn-hover" style={{ border:`1px solid ${selected ? tema.primary : tema.border}`, borderRadius:12, background:selected ? `${tema.primary}12` : tema.cardSoft, color:tema.text, cursor:'pointer', padding:0, overflow:'hidden', textAlign:'left', position:'relative' }}>
@@ -2546,12 +2579,18 @@ export default function Home() {
                       e.stopPropagation()
                       dragClickEngelleRef.current = false
                     }}
+                    onClick={(e) => {
+                      if (g.tamam || dragClickEngelleRef.current) return
+                      const target = e.target as HTMLElement
+                      if (target.closest('button, input, select, textarea')) return
+                      detayAc(g)
+                    }}
                     style={{ padding:'10px 8px 9px', border:`1px solid ${tema.border}`, borderRadius:10, background: g.tamam ? tema.cardSoft : tema.card, opacity: g.tamam?0.5:(isDragging?0.5:1), position:'relative', overflow:'hidden', cursor: g.tamam ? 'default' : 'grab' }}
                   >
                     <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:renk, borderRadius:'3px 0 0 3px' }} />
                     <div style={{ paddingLeft:10 }}>
-                      <p onClick={() => { if (!g.tamam) detayAc(g) }} style={{ margin:'0 0 2px', fontSize:10, color:renk, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>{g.ders}</p>
-                      <p onClick={() => { if (!g.tamam) detayAc(g) }} style={{ margin:'0 0 6px', fontSize:11, color: g.tamam?tema.faint:tema.text, textDecoration: g.tamam?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.4, fontWeight: g.tamam ? 400 : 500, cursor:'pointer' }}>{g.konu}</p>
+                      <p style={{ margin:'0 0 2px', fontSize:10, color:renk, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>{g.ders}</p>
+                      <p style={{ margin:'0 0 6px', fontSize:11, color: g.tamam?tema.faint:tema.text, textDecoration: g.tamam?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.4, fontWeight: g.tamam ? 400 : 500, cursor:'pointer' }}>{g.konu}</p>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                         <span style={{ fontSize:10, color:tema.faint, fontWeight:500 }}>{gs > 0 ? `${gs}dk` : '—'}</span>
                         <div style={{ display:'flex', gap:4 }}>
