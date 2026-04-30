@@ -25,14 +25,19 @@ YKS Planner Pro, Next.js App Router üzerinde çalışan client ağırlıklı bi
 
 - Supabase:
   - Giriş yapan kullanıcı görevleri.
+  - Giriş yapan kullanıcı günlük notları.
   - Auth state.
 - localStorage:
   - Misafir görevleri.
+  - Misafir günlük notları.
   - Seçili tema.
+  - Kaynak görünümü tercihi.
 
 ## Kritik Mimari Kural
 
 Planner görünümü takvim haftasına sabit değildir. Görünüm yedi günlük hareketli pencere olarak çalışır. Bu pencere hafta sınırını geçebildiği için her görevde `gun` ve `hafta` birlikte doğru kalmalıdır.
+
+Günlük odak görünümü ayrı route değildir. Haftalık planner içinden seçili gün için açılan tam ekran paneldir; görev verisi aynı `gorevler` modelini, günlük notlar `gunluk_notlar` modelini kullanır.
 
 ## Deploy
 

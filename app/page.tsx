@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import {
+  Archive,
+  BookOpen,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -9,15 +11,18 @@ import {
   ChevronRight,
   Clock,
   Copy,
+  Image as ImageIcon,
   ListPlus,
   LogIn,
   LogOut,
   MousePointer2,
   MoveRight,
+  NotebookPen,
   Plus,
   Save,
   Settings,
   Trash2,
+  Type,
   X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -39,10 +44,26 @@ interface Gorev {
 }
 
 type TemaMode = 'dark' | 'light'
-type AyarSekmesi = 'tema' | 'font' | 'cursor'
+type AyarSekmesi = 'tema' | 'font' | 'cursor' | 'kaynak'
 type ArkaPlanStili = 'balanced' | 'atmospheric'
 type FontKey = 'dmMono' | 'geistMono' | 'jetBrainsMono' | 'ibmPlexMono' | 'spaceGrotesk' | 'manrope'
 type CursorKey = 'minimal' | 'system'
+type KaynakGorunumu = 'text' | 'visual'
+
+interface GunlukNot {
+  id: string
+  user_id?: string
+  tarih: string
+  icerik: string
+  created_at: string
+}
+
+interface Kaynak {
+  id: string
+  ad: string
+  ders: string
+  kapak_url?: string
+}
 
 interface Tema {
   name: string
@@ -131,6 +152,21 @@ const CURSORLAR: Record<CursorKey, CursorSecenegi> = {
     tone: 'Kapalı',
     preview: 'Mac imleci kullan'
   },
+}
+
+const ORNEK_KAYNAKLAR: Record<string, Kaynak> = {
+  'TYT Mat': { id: 'tyt-mat-3d', ad: '3D TYT Matematik', ders: 'TYT Mat' },
+  'TYT Türkçe': { id: 'tyt-turkce-not', ad: 'Türkçe konu notları', ders: 'TYT Türkçe' },
+  'TYT Fen': { id: 'tyt-fen-kaynak', ad: 'TYT Fen soru bankası', ders: 'TYT Fen' },
+  'TYT Sosyal': { id: 'tyt-sosyal-kaynak', ad: 'TYT Sosyal tekrar', ders: 'TYT Sosyal' },
+  'TYT Genel Deneme': { id: 'tyt-deneme-defteri', ad: 'Deneme defteri', ders: 'TYT Genel Deneme' },
+  'AYT Mat': { id: 'ayt-mat-kaynak', ad: 'AYT Matematik soru bankası', ders: 'AYT Mat' },
+  'AYT Fizik': { id: 'ayt-fizik-paraf', ad: 'Paraf AYT Fizik', ders: 'AYT Fizik' },
+  'AYT Kimya': { id: 'ayt-kimya-kaynak', ad: 'AYT Kimya fasikül', ders: 'AYT Kimya' },
+  'AYT Bio': { id: 'ayt-bio-kaynak', ad: 'AYT Biyoloji kaynak', ders: 'AYT Bio' },
+  'AYT Edebiyat': { id: 'ayt-edebiyat-kaynak', ad: 'AYT Edebiyat notları', ders: 'AYT Edebiyat' },
+  'AYT Tarih': { id: 'ayt-tarih-kaynak', ad: 'AYT Tarih tekrar', ders: 'AYT Tarih' },
+  'AYT Genel Deneme': { id: 'ayt-deneme-defteri', ad: 'AYT deneme defteri', ders: 'AYT Genel Deneme' },
 }
 
 const TEMALAR: Record<string, Tema> = {
@@ -419,6 +455,8 @@ const normalizeCursorKey = (key: string | null): CursorKey =>
   key === 'system' ? 'system' : 'minimal'
 const normalizeArkaPlanStili = (key: string | null): ArkaPlanStili =>
   key === 'atmospheric' ? 'atmospheric' : 'balanced'
+const normalizeKaynakGorunumu = (key: string | null): KaynakGorunumu =>
+  key === 'visual' ? 'visual' : 'text'
 const getDengeliArkaPlan = (tema: Tema) => tema.mode === 'dark' ? '#05070d' : '#f8fafc'
 const getDengeliTema = (tema: Tema): Tema => {
   if (tema.mode === 'dark') {
@@ -538,6 +576,10 @@ export default function Home() {
   const [detayModal, setDetayModal] = useState<Gorev | null>(null)
   const [kopyaDrag, setKopyaDrag] = useState<Gorev | null>(null)
   const [kopyaKonum, setKopyaKonum] = useState({ x: 0, y: 0 })
+  const [gunlukPanelIndex, setGunlukPanelIndex] = useState<number | null>(null)
+  const [gunlukNotlar, setGunlukNotlar] = useState<GunlukNot[]>([])
+  const [notlarAcik, setNotlarAcik] = useState(false)
+  const [notInput, setNotInput] = useState('')
   const [editKonu, setEditKonu] = useState('')
   const [editDers, setEditDers] = useState('')
   const [bitmeyenAcik, setBitmeyenAcik] = useState(false)
@@ -560,6 +602,7 @@ export default function Home() {
   const [aktifFont, setAktifFont] = useState<FontKey>('dmMono')
   const [aktifCursor, setAktifCursor] = useState<CursorKey>('minimal')
   const [arkaPlanStili, setArkaPlanStili] = useState<ArkaPlanStili>('balanced')
+  const [kaynakGorunumu, setKaynakGorunumu] = useState<KaynakGorunumu>('text')
   const [draggingTask, setDraggingTask] = useState<Gorev | null>(null)
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
   const [bildirim, setBildirim] = useState<string | null>(null)
@@ -702,6 +745,7 @@ export default function Home() {
       setAktifFont(normalizeFontKey(localStorage.getItem('yks-font')))
       setAktifCursor(normalizeCursorKey(localStorage.getItem('yks-cursor')))
       setArkaPlanStili(normalizeArkaPlanStili(localStorage.getItem('yks-bg-style')))
+      setKaynakGorunumu(normalizeKaynakGorunumu(localStorage.getItem('yks-kaynak-gorunumu')))
       setTercihlerYuklendi(true)
     })
     return () => window.cancelAnimationFrame(frame)
@@ -726,6 +770,11 @@ export default function Home() {
     if (!tercihlerYuklendi) return
     localStorage.setItem('yks-bg-style', arkaPlanStili)
   }, [arkaPlanStili, tercihlerYuklendi])
+
+  useEffect(() => {
+    if (!tercihlerYuklendi) return
+    localStorage.setItem('yks-kaynak-gorunumu', kaynakGorunumu)
+  }, [kaynakGorunumu, tercihlerYuklendi])
 
   useEffect(() => {
     return () => setDragSelectionLock(false)
@@ -824,6 +873,26 @@ export default function Home() {
     setLoading(false)
   }
 
+  async function loadGunlukNotlar(currentUser: User | null) {
+    if (!currentUser) {
+      const local = JSON.parse(localStorage.getItem('yks-gunluk-notlar') || '[]')
+      setGunlukNotlar((local as GunlukNot[]).sort((a, b) => b.created_at.localeCompare(a.created_at)))
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('gunluk_notlar')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Günlük notlar yüklenemedi:', error)
+      setGunlukNotlar([])
+      return
+    }
+    if (data) setGunlukNotlar(data as GunlukNot[])
+  }
+
   async function migrateGuestTasks(currentUser: User) {
     const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
     if (local.length === 0 || guestMigrate) return
@@ -851,6 +920,7 @@ export default function Home() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user)
       loadGorevler(user)
+      loadGunlukNotlar(user)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -858,10 +928,12 @@ export default function Home() {
       setUser(u)
       if (u) {
         loadGorevler(u)
+        loadGunlukNotlar(u)
         // Migrate guest tasks if needed
         migrateGuestTasks(u)
       } else {
         loadGorevler(null)
+        loadGunlukNotlar(null)
       }
     })
 
@@ -911,6 +983,54 @@ export default function Home() {
     const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
     const otherWeeks = local.filter((g: Gorev) => !gorunenHaftalar.includes(g.hafta))
     localStorage.setItem('yks-gorevler', JSON.stringify([...otherWeeks, ...newGorevler]))
+  }
+
+  const saveGuestNotes = (notlar: GunlukNot[]) => {
+    localStorage.setItem('yks-gunluk-notlar', JSON.stringify(notlar))
+  }
+
+  const gunlukNotEkle = async (tarih: string) => {
+    if (!notInput.trim()) return
+    const icerik = notInput.trim()
+
+    if (!user) {
+      const yeni: GunlukNot = { id: createGuestId(), tarih, icerik, created_at: new Date().toISOString() }
+      const updated = [yeni, ...gunlukNotlar]
+      setGunlukNotlar(updated)
+      saveGuestNotes(updated)
+    } else {
+      const { data, error } = await supabase
+        .from('gunluk_notlar')
+        .insert({ tarih, icerik, user_id: user.id })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Günlük not eklenemedi:', error)
+        alert('Not eklenemedi: ' + error.message)
+        return
+      }
+      if (data) setGunlukNotlar([data as GunlukNot, ...gunlukNotlar])
+    }
+
+    setNotInput('')
+    bildir('Not kaydedildi')
+  }
+
+  const gunlukNotSil = async (id: string) => {
+    if (!user) {
+      const updated = gunlukNotlar.filter(n => n.id !== id)
+      setGunlukNotlar(updated)
+      saveGuestNotes(updated)
+    } else {
+      const { error } = await supabase.from('gunluk_notlar').delete().eq('id', id)
+      if (error) {
+        console.error('Günlük not silinemedi:', error)
+        alert('Not silinemedi: ' + error.message)
+        return
+      }
+      setGunlukNotlar(gunlukNotlar.filter(n => n.id !== id))
+    }
   }
 
   const ekle = async () => {
@@ -1269,6 +1389,39 @@ export default function Home() {
     return gunGorevler.reduce((toplam, g) => toplam + (g.gercek_sure || 0), 0)
   }
 
+  const seciliGun = gunlukPanelIndex === null ? null : gorunenGunler[gunlukPanelIndex]
+  const seciliGunTarihId = seciliGun ? tarihId(seciliGun.tarih) : ''
+  const seciliGunGorevleri = seciliGun
+    ? aktifGorevler.filter(g => g.hafta === seciliGun.hafta && g.gun === seciliGun.gun)
+    : []
+  const seciliGunTamam = seciliGunGorevleri.filter(g => g.tamam).length
+  const seciliGunYuzde = seciliGunGorevleri.length ? Math.round((seciliGunTamam / seciliGunGorevleri.length) * 100) : 0
+  const seciliGunSure = seciliGunGorevleri.filter(g => g.tamam).reduce((toplam, g) => toplam + (g.gercek_sure || 0), 0)
+  const seciliGunNotlari = seciliGunTarihId ? gunlukNotlar.filter(n => n.tarih === seciliGunTarihId) : []
+  const kaynaklariGetir = (tasks: Gorev[]) => {
+    const dersler = Array.from(new Set(tasks.map(g => g.ders)))
+    return dersler.map(ders => ORNEK_KAYNAKLAR[ders] || { id: `kaynak-${ders}`, ad: `${ders} kaynağı`, ders })
+  }
+  const seciliGunKaynaklari = kaynaklariGetir(seciliGunGorevleri)
+  const formatGunTarihi = (date: Date) =>
+    date.toLocaleDateString('tr', { day: 'numeric', month: 'long', weekday: 'long' })
+  const gunlukOnceki = () => {
+    if (gunlukPanelIndex === null) return
+    if (gunlukPanelIndex > 0) {
+      setGunlukPanelIndex(gunlukPanelIndex - 1)
+    } else {
+      setGunOffset(o => o - 1)
+    }
+  }
+  const gunlukSonraki = () => {
+    if (gunlukPanelIndex === null) return
+    if (gunlukPanelIndex < 6) {
+      setGunlukPanelIndex(gunlukPanelIndex + 1)
+    } else {
+      setGunOffset(o => o + 1)
+    }
+  }
+
   return (
     <div
       onClick={handleRootClick}
@@ -1472,11 +1625,12 @@ export default function Home() {
               </div>
               <button onClick={() => setAyarlarAcik(false)} className="btn-hover icon-only" aria-label="kapat" title="kapat" style={{ background:tema.cardSoft, border:'none', color:tema.muted, cursor:'pointer', width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}><X size={16} strokeWidth={2.2} /></button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
               {[
                 ['tema', 'Tema Rengi'],
                 ['font', 'Font'],
                 ['cursor', 'Cursor'],
+                ['kaynak', 'Kaynak'],
               ].map(([key, label]) => {
                 const active = ayarSekmesi === key
                 return (
@@ -1624,7 +1778,7 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-            ) : (
+            ) : ayarSekmesi === 'cursor' ? (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
                 {Object.entries(CURSORLAR).map(([key, c]) => {
                   const active = aktifCursor === key
@@ -1665,7 +1819,225 @@ export default function Home() {
                   )
                 })}
               </div>
+            ) : (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
+                {[
+                  ['text', 'Yazı', 'Kaynaklar sade liste olarak görünür.', <Type key="type" size={18} strokeWidth={2.1} />],
+                  ['visual', 'Görsel', 'Kapak alanlı kompakt grid altyapısı kullanılır.', <ImageIcon key="image" size={18} strokeWidth={2.1} />],
+                ].map(([key, name, desc, icon]) => {
+                  const active = kaynakGorunumu === key
+                  return (
+                    <button
+                      key={key as string}
+                      onClick={() => setKaynakGorunumu(key as KaynakGorunumu)}
+                      className="btn-hover"
+                      style={{
+                        padding:'18px 16px',
+                        borderRadius:16,
+                        border: active ? `2px solid ${tema.primary}` : `1px solid ${tema.border}`,
+                        background:tema.cardSoft,
+                        color:tema.text,
+                        cursor:'pointer',
+                        textAlign:'left',
+                        position:'relative',
+                        transition:'all 0.2s',
+                        minHeight:126
+                      }}
+                    >
+                      <div style={{ width:38, height:38, borderRadius:12, background:active ? `${tema.primary}20` : tema.card, border:`1px solid ${active ? tema.primary : tema.border}`, color:active ? tema.primaryLight : tema.faint, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12 }}>
+                        {icon}
+                      </div>
+                      <p style={{ margin:'0 0 8px', fontSize:16, color:tema.textStrong, fontWeight:700 }}>{name}</p>
+                      <p style={{ margin:0, fontSize:11, color:tema.faint, lineHeight:1.45 }}>{desc}</p>
+                      {active && (
+                        <div style={{ position:'absolute', top:12, right:12, width:20, height:20, borderRadius:'50%', background:tema.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <Check size={12} strokeWidth={2.4} color={tema.onPrimary} />
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* NOT ARŞİVİ */}
+      {notlarAcik && (
+        <div onMouseDown={(e) => closeOnBackdrop(e, () => setNotlarAcik(false))} className="slide-in" style={{ position:'fixed', inset:0, zIndex:2100, background:tema.overlay, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:20, padding:'28px 30px', maxWidth:620, width:'100%', maxHeight:'82vh', overflowY:'auto', boxShadow:tema.shadow }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+              <div>
+                <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:2, textTransform:'uppercase', fontWeight:700 }}>Not Arşivi</p>
+                <p style={{ margin:'5px 0 0', fontSize:20, color:tema.textStrong, fontWeight:700 }}>Günlük Notlar</p>
+              </div>
+              <button onClick={() => setNotlarAcik(false)} className="btn-hover icon-only" aria-label="kapat" title="kapat" style={{ ...iconButtonStyle, background:tema.cardSoft }}><X size={16} strokeWidth={2.2} /></button>
+            </div>
+            {gunlukNotlar.length === 0 ? (
+              <div style={{ padding:'28px 20px', border:`1px dashed ${tema.border}`, borderRadius:14, textAlign:'center', color:tema.faint }}>
+                <NotebookPen size={22} strokeWidth={1.9} />
+                <p style={{ margin:'10px 0 0', fontSize:13 }}>Henüz not yok.</p>
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {gunlukNotlar.map(not => {
+                  const notTarihi = new Date(`${not.tarih}T12:00:00`)
+                  return (
+                    <div key={not.id} style={{ padding:'13px 14px', border:`1px solid ${tema.border}`, borderRadius:12, background:tema.cardSoft }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
+                        <div style={{ minWidth:0 }}>
+                          <p style={{ margin:'0 0 6px', fontSize:10, color:tema.primaryLight, fontWeight:700, letterSpacing:0.6 }}>{formatGunTarihi(notTarihi)}</p>
+                          <p style={{ margin:0, fontSize:13, color:tema.text, lineHeight:1.5, whiteSpace:'pre-wrap' }}>{not.icerik}</p>
+                        </div>
+                        <button onClick={() => gunlukNotSil(not.id)} className="btn-hover icon-only task-action task-action-delete" aria-label="notu sil" title="notu sil" style={{ width:28, height:28, borderRadius:8, background:'transparent', border:'none', color:tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center', flex:'0 0 auto' }}><Trash2 size={14} strokeWidth={2.1} /></button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* GÜNLÜK ODAK PANELİ */}
+      {seciliGun && (
+        <div className="slide-in" style={{ position:'fixed', inset:0, zIndex:1500, background:sayfaArkaPlani, color:tema.text, fontFamily:font.family, overflowY:'auto', padding: isMobile ? '1rem 0.75rem 2rem' : '1.5rem 1rem 3rem' }}>
+          <div style={{ maxWidth:1180, margin:'0 auto' }}>
+            <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(160px, 1fr) minmax(320px, auto) minmax(160px, 1fr)', alignItems:'center', gap:12, marginBottom:18 }}>
+              <button onClick={() => setGunlukPanelIndex(null)} className="btn-hover" style={{ ...compactActionStyle, justifySelf:isMobile ? 'start' : 'start', background:tema.card, border:`1px solid ${tema.border}`, color:tema.muted }}>
+                <ChevronLeft {...iconProps} /> haftaya dön
+              </button>
+              <div style={{ textAlign:'center' }}>
+                <p style={{ margin:0, fontSize:11, color:tema.primaryLight, letterSpacing:1.8, textTransform:'uppercase', fontWeight:700 }}>Günlük Odak</p>
+                <h2 style={{ margin:'4px 0 0', fontSize:isMobile ? 24 : 30, color:tema.textStrong, fontWeight:800 }}>{seciliGunTarihId === tarihId(new Date()) ? 'Bugün' : seciliGun.label}</h2>
+                <div style={{ marginTop:12, display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
+                  <button onClick={gunlukOnceki} className="btn-hover icon-only" aria-label="önceki gün" title="önceki gün" style={iconButtonStyle}><ChevronLeft size={16} strokeWidth={2.2} /></button>
+                  <p style={{ margin:0, minWidth:160, fontSize:12, color:tema.muted, fontWeight:600 }}>{formatGunTarihi(seciliGun.tarih)}</p>
+                  <button onClick={gunlukSonraki} className="btn-hover icon-only" aria-label="sonraki gün" title="sonraki gün" style={iconButtonStyle}><ChevronRight size={16} strokeWidth={2.2} /></button>
+                </div>
+              </div>
+              <div style={{ minHeight:isMobile ? 0 : 34 }} />
+            </div>
+
+            <div style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:14, padding:isMobile ? '16px' : '18px 20px', marginBottom:14, display:'grid', gridTemplateColumns:isMobile ? '1fr' : '260px 1fr', gap:18, alignItems:'center' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+                <div style={{ width:76, height:76, borderRadius:'50%', background:`conic-gradient(${tema.primary} ${seciliGunYuzde * 3.6}deg, ${tema.border} 0deg)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 0 1px ${tema.border}` }}>
+                  <div style={{ width:56, height:56, borderRadius:'50%', background:tema.card, display:'flex', alignItems:'center', justifyContent:'center', color:tema.textStrong, fontSize:15, fontWeight:800 }}>{seciliGunYuzde}%</div>
+                </div>
+                <div>
+                  <p style={{ margin:'0 0 5px', fontSize:14, color:tema.textStrong, fontWeight:800, display:'inline-flex', alignItems:'center', gap:7 }}><CheckCircle2 size={14} strokeWidth={2.1} /> Bugünkü ilerleme</p>
+                  <p style={{ margin:0, fontSize:12, color:tema.muted }}>{seciliGunTamam} / {seciliGunGorevleri.length} görev tamamlandı</p>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:10 }}>
+                {[
+                  ['Toplam', seciliGunGorevleri.length],
+                  ['Kalan', seciliGunGorevleri.length - seciliGunTamam],
+                  ['Süre', seciliGunSure ? formatSure(seciliGunSure) : '-'],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ padding:'12px 10px', border:`1px solid ${tema.border}`, borderRadius:12, background:tema.cardSoft, textAlign:'center' }}>
+                    <p style={{ margin:'0 0 7px', fontSize:10, color:tema.faint, fontWeight:700 }}>{label}</p>
+                    <p style={{ margin:0, fontSize:18, color:label === 'Kalan' ? '#f87171' : tema.textStrong, fontWeight:800 }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'minmax(0, 1.55fr) minmax(280px, 0.85fr)', gap:14, alignItems:'start' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+                  <p style={{ margin:0, fontSize:13, color:tema.textStrong, fontWeight:800, display:'inline-flex', alignItems:'center', gap:7 }}><CalendarDays size={14} strokeWidth={2.1} /> Günün görevleri</p>
+                  <button onClick={() => { setEkleGun(gunlukPanelIndex); setFormKonu('') }} className="btn-hover" style={{ ...compactActionStyle, background:tema.card, border:`1px solid ${tema.border}`, color:tema.muted }}>
+                    <Plus {...iconProps} /> görev ekle
+                  </button>
+                </div>
+                {ekleGun === gunlukPanelIndex && (
+                  <div className="slide-in" style={{ padding:'14px 12px', border:`1px solid ${tema.border}`, borderRadius:12, background:tema.cardSoft, display:'flex', flexDirection:'column', gap:10 }}>
+                    <input autoFocus value={formKonu} onChange={e => setFormKonu(e.target.value)} onKeyDown={e => { if(e.key==='Enter') ekle(); if(e.key==='Escape') setEkleGun(null); }} placeholder="ne çalışacaksın?..."
+                      style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.text, fontSize:15, padding:'14px 14px', outline:'none', width:'100%', boxSizing:'border-box' }} />
+                    <select value={formDers} onChange={e => setFormDers(e.target.value)} style={{ fontSize:13, padding:'12px 12px', background:tema.card, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.muted, width:'100%', boxSizing:'border-box', appearance:'none', WebkitAppearance:'none' }}>
+                      {DERSLER.map(d => <option key={d}>{d}</option>)}
+                    </select>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={() => setEkleGun(null)} className="btn-hover" style={{ ...modalActionStyle, flex:1, fontSize:13, padding:'12px 0', background:tema.card, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
+                      <button onClick={ekle} className="btn-hover" style={{ ...modalActionStyle, flex:1, fontSize:13, padding:'12px 0', background:tema.primary, border:'none', color:tema.onPrimary }}><Plus {...iconProps} /> ekle</button>
+                    </div>
+                  </div>
+                )}
+                {seciliGunGorevleri.length === 0 ? (
+                  <div style={{ padding:'28px 20px', border:`1px dashed ${tema.border}`, borderRadius:14, color:tema.faint, textAlign:'center' }}>Bu güne görev eklenmemiş.</div>
+                ) : seciliGunGorevleri.map(g => {
+                  const renk = getDersRengi(g.ders, tema.mode)
+                  const gs = g.gercek_sure || 0
+                  return (
+                    <div key={g.id} className="gorev-card" style={{ padding:'13px 12px 12px', border:`1px solid ${tema.border}`, borderRadius:12, background: g.tamam ? tema.cardSoft : tema.card, opacity:g.tamam ? 0.55 : 1, position:'relative', overflow:'hidden' }}>
+                      <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:renk, borderRadius:'3px 0 0 3px' }} />
+                      <div style={{ paddingLeft:12 }}>
+                        <p onClick={() => { if (!g.tamam) detayAc(g) }} style={{ margin:'0 0 3px', fontSize:11, color:renk, fontWeight:800, cursor:'pointer' }}>{g.ders}</p>
+                        <p onClick={() => { if (!g.tamam) detayAc(g) }} style={{ margin:'0 0 8px', fontSize:13, color:g.tamam ? tema.faint : tema.text, textDecoration:g.tamam ? 'line-through' : 'none', lineHeight:1.45, fontWeight:600, cursor:'pointer' }}>{g.konu}</p>
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                          <span style={{ fontSize:11, color:tema.faint, fontWeight:600 }}>{gs > 0 ? `${gs}dk` : '—'}</span>
+                          <div style={{ display:'flex', gap:5 }}>
+                            <button onClick={() => tickla(g)} className="btn-hover icon-only" title={g.tamam ? 'tamamlandı' : 'tamamla'} aria-label={g.tamam ? 'görev tamamlandı' : 'görevi tamamla'} style={{ width:24, height:24, borderRadius:7, border:g.tamam ? 'none' : `2px solid ${tema.border}`, background:g.tamam ? renk : 'transparent', color:g.tamam ? '#000' : tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}>{g.tamam && <Check size={13} strokeWidth={2.4} />}</button>
+                            <button onClick={(e) => kopyaBaslat(g, e)} className="btn-hover icon-only task-action task-action-copy" title="çoğalt" aria-label="görevi çoğalt" style={{ width:24, height:24, borderRadius:7, background:'transparent', border:'none', color:tema.faint, cursor:'copy', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Copy size={14} strokeWidth={2.1} /></button>
+                            <button onClick={() => sil(g.id)} className="btn-hover icon-only task-action task-action-delete" title="sil" aria-label="görevi sil" style={{ width:24, height:24, borderRadius:7, background:'transparent', border:'none', color:tema.faint, cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center' }}><Trash2 size={14} strokeWidth={2.1} /></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                <div style={{ padding:'16px', border:`1px solid ${tema.border}`, borderRadius:14, background:tema.card }}>
+                  <p style={{ margin:'0 0 12px', fontSize:13, color:tema.textStrong, fontWeight:800, display:'inline-flex', alignItems:'center', gap:7 }}><BookOpen size={14} strokeWidth={2.1} /> Hazırlık</p>
+                  {seciliGunKaynaklari.length === 0 ? (
+                    <p style={{ margin:0, fontSize:12, color:tema.faint }}>Görev eklenince kaynak hazırlığı burada görünür.</p>
+                  ) : kaynakGorunumu === 'visual' ? (
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
+                      {seciliGunKaynaklari.map(kaynak => (
+                        <div key={kaynak.id} style={{ border:`1px solid ${tema.border}`, borderRadius:12, background:tema.cardSoft, overflow:'hidden' }}>
+                          <div style={{ aspectRatio:'3 / 4', background:kaynak.kapak_url ? `url(${kaynak.kapak_url}) center / cover` : `linear-gradient(135deg, ${getDersRengi(kaynak.ders, tema.mode)}44, ${tema.card})`, display:'flex', alignItems:'center', justifyContent:'center', color:tema.textStrong }}>
+                            {!kaynak.kapak_url && <BookOpen size={24} strokeWidth={1.9} />}
+                          </div>
+                          <p style={{ margin:0, padding:'8px 9px', fontSize:10, color:tema.text, fontWeight:700, lineHeight:1.35 }}>{kaynak.ad}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      {seciliGunKaynaklari.map(kaynak => (
+                        <div key={kaynak.id} style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 10px', border:`1px solid ${tema.border}`, borderRadius:10, background:tema.cardSoft }}>
+                          <span style={{ width:8, height:8, borderRadius:'50%', background:getDersRengi(kaynak.ders, tema.mode), flex:'0 0 auto' }} />
+                          <span style={{ fontSize:12, color:tema.text, fontWeight:700 }}>{kaynak.ad}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ padding:'16px', border:`1px solid ${tema.border}`, borderRadius:14, background:tema.card }}>
+                  <p style={{ margin:'0 0 12px', fontSize:13, color:tema.textStrong, fontWeight:800, display:'inline-flex', alignItems:'center', gap:7 }}><NotebookPen size={14} strokeWidth={2.1} /> Günün notu</p>
+                  <textarea value={notInput} onChange={e => setNotInput(e.target.value)} placeholder="bugün için kısa not..."
+                    style={{ width:'100%', minHeight:92, resize:'vertical', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:13, padding:'12px 13px', outline:'none', boxSizing:'border-box', fontFamily:font.family, lineHeight:1.5 }} />
+                  <button onClick={() => gunlukNotEkle(seciliGunTarihId)} className="btn-hover" style={{ ...compactActionStyle, width:'100%', marginTop:10, background:tema.primary, border:'none', color:tema.onPrimary }}>
+                    <Save {...iconProps} /> notu kaydet
+                  </button>
+                  {seciliGunNotlari.length > 0 && (
+                    <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:8 }}>
+                      {seciliGunNotlari.slice(0, 3).map(not => (
+                        <div key={not.id} style={{ padding:'10px 11px', border:`1px solid ${tema.border}`, borderRadius:10, background:tema.cardSoft }}>
+                          <p style={{ margin:0, fontSize:12, color:tema.text, lineHeight:1.45, whiteSpace:'pre-wrap' }}>{not.icerik}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1695,6 +2067,9 @@ export default function Home() {
         </div>
 
         <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, order: isMobile ? 0 : 0 }}>
+          <button onClick={() => setNotlarAcik(true)} className="btn-hover" style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:10, padding:'6px 12px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:7, color:tema.muted, cursor:'pointer', fontWeight:600 }}>
+            <Archive size={12} strokeWidth={2.1} /> Notlar
+          </button>
           {user ? (
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <span style={{ fontSize:10, color:tema.faint }}>{user.email}</span>
@@ -1831,12 +2206,18 @@ export default function Home() {
               style={{ display:'flex', flexDirection:'column', gap:6, animationDelay:`${i * 0.05}s`, animationFillMode:'both', minWidth: isMobile ? '120px' : 'auto', padding: isDragOver || kopyaDrag ? '8px 4px' : '0', cursor: kopyaDrag ? 'copy' : 'default' }}
             >
               {/* Gün başlığı */}
-              <div style={{ padding:'8px 6px', borderRadius:10, background: isBugun?`linear-gradient(135deg, ${tema.primary}, ${tema.primaryLight})`:tema.card, border: isBugun?'none':`1px solid ${tema.border}`, textAlign:'center', marginBottom:2 }}>
+              <button
+                type="button"
+                onClick={() => setGunlukPanelIndex(i)}
+                className="btn-hover"
+                aria-label={`${gunBilgisi.label} günlük görünümü aç`}
+                style={{ padding:'8px 6px', borderRadius:10, background: isBugun?`linear-gradient(135deg, ${tema.primary}, ${tema.primaryLight})`:tema.card, border: isBugun?'none':`1px solid ${tema.border}`, textAlign:'center', marginBottom:2, cursor:'pointer', width:'100%' }}
+              >
                 <p style={{ margin:0, fontSize:11, fontWeight:600, color: isBugun?tema.onPrimary:tema.muted, letterSpacing:0.5 }}>{gunBilgisi.label}</p>
                 {gunGorevler.length > 0 && (
                   <p style={{ margin:'3px 0 0', fontSize:10, color: isBugun?tema.onPrimary: tamam===gunGorevler.length?tema.primaryLight:tema.faint, fontWeight: isBugun ? 500 : 400 }}>{tamam}/{gunGorevler.length}</p>
                 )}
-              </div>
+              </button>
 
               {/* Toplam çalışma süresi */}
               {gunToplamSure > 0 && (

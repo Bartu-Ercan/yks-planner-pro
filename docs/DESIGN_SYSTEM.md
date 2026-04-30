@@ -185,6 +185,14 @@ Spacing:
 - Bugünün başlığı `primary -> primaryLight` gradient alır.
 - Normal gün başlığı tema `card` zemin ve border alır.
 - Gün başlığı kompakt kalır.
+- Gün başlığına tıklamak günlük odak görünümünü açabilir; bu aksiyon yeni nav gibi görünmemelidir.
+
+### Daily Focus Panel
+
+- Ayrı route veya dashboard değildir; haftalık planner içinden açılan tam ekran odak yüzeyidir.
+- Header, progress, görev kartı, not ve hazırlık alanları mevcut kompakt panel dilinden türetilir.
+- Hazırlık alanı kaynakları yazı listesi veya kapak görselli kompakt grid olarak gösterebilir.
+- Not arşivi header aksiyonu ve modal/drawer mantığıyla açılır; ana ekran kalabalıklaştırılmaz.
 
 ### Task Card
 

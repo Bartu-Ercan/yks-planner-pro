@@ -26,6 +26,9 @@ YKS Planner Pro, YKS hazırlık sürecini günlük görevler ve haftalık görü
 - Görevler tek tek veya toplu eklenebilir.
 - Görevler günler arasında sürüklenebilir.
 - Tamamlama sırasında süre girişi yapılabilir.
+- Gün başlığı üzerinden günlük odak görünümü açılabilir.
+- Günlük notlar güne bağlı tutulur ve not arşivinde kronolojik görünür.
+- Günlük hazırlık alanı kaynakları yazı veya görsel altyapıyla gösterebilir.
 - Tema seçimi localStorage içinde saklanır.
 - Giriş yapılmamış görevler localStorage içinde tutulur.
 - Giriş sonrası görevler Supabase `gorevler` tablosunda tutulur.
