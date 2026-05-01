@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import {
+  Apple,
   Archive,
   BookOpen,
+  Building2,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -66,6 +68,9 @@ interface GunlukNot {
 }
 
 type Kaynak = KaynakKatalogItem
+
+const KAYNAK_BY_ID = new Map(KAYNAK_KATALOGU.map(kaynak => [kaynak.id, kaynak]))
+const KAYNAK_ID_SET = new Set(KAYNAK_KATALOGU.map(kaynak => kaynak.id))
 
 interface FontSecenegi {
   name: string
@@ -323,11 +328,11 @@ export default function Home() {
   const customCursorAktif = !isMobile && !cursorKapali && aktifCursor !== 'system'
   const cursorMode = kopyaDrag ? 'copy' : draggingTask ? 'drag' : dragOverDay !== null ? 'target' : cursorInteractive ? 'hover' : 'normal'
   const iconProps = { size: 14, strokeWidth: 2.1 }
-  const oauthProviders: { provider: OAuthProvider; label: string }[] = [
-    { provider: 'google', label: 'Google' },
-    { provider: 'apple', label: 'Apple' },
-    { provider: 'facebook', label: 'Facebook' },
-    { provider: 'azure', label: 'Microsoft' },
+  const oauthProviders: { provider: OAuthProvider; label: string; color: string }[] = [
+    { provider: 'google', label: 'Google', color: '#4285f4' },
+    { provider: 'apple', label: 'Apple', color: tema.textStrong },
+    { provider: 'facebook', label: 'Facebook', color: '#1877f2' },
+    { provider: 'azure', label: 'Microsoft', color: '#7c3aed' },
   ]
   const iconButtonStyle: CSSProperties = {
     background: tema.card,
@@ -386,7 +391,7 @@ export default function Home() {
   const getGorevKaynakIds = (gorev: Partial<Gorev>) => {
     const ids = Array.isArray(gorev.kaynak_ids) ? [...gorev.kaynak_ids] : []
     if (gorev.kaynak_id && !ids.includes(gorev.kaynak_id)) ids.push(gorev.kaynak_id)
-    return Array.from(new Set(ids.filter(id => KAYNAK_KATALOGU.some(kaynak => kaynak.id === id))))
+    return Array.from(new Set(ids.filter(id => KAYNAK_ID_SET.has(id))))
   }
 
   const normalizeGorevKaynakIds = (gorev: Gorev): Gorev => ({
@@ -1564,7 +1569,8 @@ export default function Home() {
   const seciliGunYuzde = seciliGunGorevleri.length ? Math.round((seciliGunTamam / seciliGunGorevleri.length) * 100) : 0
   const seciliGunSure = seciliGunGorevleri.filter(g => g.tamam).reduce((toplam, g) => toplam + (g.gercek_sure || 0), 0)
   const seciliGunNotlari = seciliGunTarihId ? gunlukNotlar.filter(n => n.tarih === seciliGunTarihId) : []
-  const kullaniciKaynaklari = KAYNAK_KATALOGU.filter(kaynak => kullaniciKaynakIds.includes(kaynak.id)).sort(kaynakSirala)
+  const kullaniciKaynakIdSet = new Set(kullaniciKaynakIds)
+  const kullaniciKaynaklari = KAYNAK_KATALOGU.filter(kaynak => kullaniciKaynakIdSet.has(kaynak.id)).sort(kaynakSirala)
   const formKaynaklari = kullaniciKaynaklari.filter(kaynak => kaynak.ders === formDers).sort(kaynakSirala)
   const editKaynaklari = kullaniciKaynaklari.filter(kaynak => kaynak.ders === editDers).sort(kaynakSirala)
   const filtreDersleri = [KAYNAK_DERS_TUMU, ...KAYNAK_DERSLER.filter(ders => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === aktifKaynakSinav && kaynak.ders === ders))]
@@ -1578,7 +1584,7 @@ export default function Home() {
   const kaynaklariGetir = (tasks: Gorev[]) => {
     const kaynakIds = Array.from(new Set(tasks.flatMap(getGorevKaynakIds)))
     return kaynakIds
-      .map(id => KAYNAK_KATALOGU.find(kaynak => kaynak.id === id))
+      .map(id => KAYNAK_BY_ID.get(id))
       .filter((kaynak): kaynak is Kaynak => Boolean(kaynak))
       .sort(kaynakSirala)
   }
@@ -1613,18 +1619,20 @@ export default function Home() {
           Bu ders için kaynak seçilmemiş.
         </button>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
-          <button type="button" onClick={() => setFormKaynakIds([])} className="btn-hover" style={{ minHeight:58, padding:'9px 8px', border:`1px solid ${formKaynakIds.length === 0 ? tema.primary : tema.border}`, borderRadius:10, background:tema.card, color:formKaynakIds.length === 0 ? tema.primaryLight : tema.faint, cursor:'pointer', fontSize:11, fontWeight:700 }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:280, overflowY:'auto', paddingRight:2 }}>
+          <button type="button" onClick={() => setFormKaynakIds([])} className="btn-hover" style={{ minHeight:48, padding:'9px 10px', border:`1px solid ${formKaynakIds.length === 0 ? tema.primary : tema.border}`, borderRadius:10, background:tema.card, color:formKaynakIds.length === 0 ? tema.primaryLight : tema.faint, cursor:'pointer', fontSize:11, fontWeight:700, textAlign:'left' }}>
             Kaynaksız
           </button>
-          {formKaynaklari.slice(0, 7).map(kaynak => {
+          {formKaynaklari.map(kaynak => {
             const active = formKaynakIds.includes(kaynak.id)
             return (
-              <button key={kaynak.id} type="button" onClick={() => handleFormKaynakSec(kaynak.id)} className="btn-hover" style={{ display:'flex', gap:8, alignItems:'center', minHeight:58, padding:'7px 8px', border:`1px solid ${active ? tema.primary : tema.border}`, borderRadius:10, background:active ? `${tema.primary}12` : tema.card, color:tema.text, cursor:'pointer', textAlign:'left', overflow:'hidden' }}>
-                <span style={{ width:30, height:40, borderRadius:6, background:`url(${kaynak.kapak_url}) center / cover`, border:`1px solid ${tema.border}`, flex:'0 0 auto' }} />
-                <span style={{ minWidth:0 }}>
-                  <span style={{ display:'block', fontSize:10, color:active ? tema.primaryLight : tema.text, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.ad}</span>
-                  <span style={{ display:'block', marginTop:2, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</span>
+              <button key={kaynak.id} type="button" onClick={() => handleFormKaynakSec(kaynak.id)} className="btn-hover" style={{ display:'flex', gap:9, alignItems:'center', minHeight:58, padding:'7px 9px', border:`1px solid ${active ? tema.primary : tema.border}`, borderRadius:10, background:active ? `${tema.primary}12` : tema.card, color:tema.text, cursor:'pointer', textAlign:'left', overflow:'hidden' }}>
+                <span style={{ width:30, height:40, borderRadius:6, border:`1px solid ${tema.border}`, flex:'0 0 auto', overflow:'hidden', background:tema.cardSoft }}>
+                  <img src={kaynak.kapak_url} alt="" loading="lazy" decoding="async" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                </span>
+                <span style={{ minWidth:0, flex:1 }}>
+                  <span style={{ display:'block', fontSize:11, color:active ? tema.primaryLight : tema.text, fontWeight:800, lineHeight:1.35 }}>{kaynak.ad}</span>
+                  <span style={{ display:'block', marginTop:3, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</span>
                 </span>
                 {active && <Check size={13} strokeWidth={2.4} color={tema.primaryLight} />}
               </button>
@@ -1646,18 +1654,20 @@ export default function Home() {
           Bu ders için kaynak seçilmemiş.
         </button>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
-          <button type="button" onClick={() => handleEditKaynakSec('')} className="btn-hover" style={{ minHeight:58, padding:'9px 8px', border:`1px solid ${editKaynakIds.length === 0 ? tema.primary : tema.border}`, borderRadius:10, background:tema.cardSoft, color:editKaynakIds.length === 0 ? tema.primaryLight : tema.faint, cursor:'pointer', fontSize:11, fontWeight:700 }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:280, overflowY:'auto', paddingRight:2 }}>
+          <button type="button" onClick={() => handleEditKaynakSec('')} className="btn-hover" style={{ minHeight:48, padding:'9px 10px', border:`1px solid ${editKaynakIds.length === 0 ? tema.primary : tema.border}`, borderRadius:10, background:tema.cardSoft, color:editKaynakIds.length === 0 ? tema.primaryLight : tema.faint, cursor:'pointer', fontSize:11, fontWeight:700, textAlign:'left' }}>
             Kaynaksız
           </button>
-          {editKaynaklari.slice(0, 7).map(kaynak => {
+          {editKaynaklari.map(kaynak => {
             const active = editKaynakIds.includes(kaynak.id)
             return (
-              <button key={kaynak.id} type="button" onClick={() => handleEditKaynakSec(kaynak.id)} className="btn-hover" style={{ display:'flex', gap:8, alignItems:'center', minHeight:58, padding:'7px 8px', border:`1px solid ${active ? tema.primary : tema.border}`, borderRadius:10, background:active ? `${tema.primary}12` : tema.cardSoft, color:tema.text, cursor:'pointer', textAlign:'left', overflow:'hidden' }}>
-                <span style={{ width:30, height:40, borderRadius:6, background:`url(${kaynak.kapak_url}) center / cover`, border:`1px solid ${tema.border}`, flex:'0 0 auto' }} />
-                <span style={{ minWidth:0 }}>
-                  <span style={{ display:'block', fontSize:10, color:active ? tema.primaryLight : tema.text, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.ad}</span>
-                  <span style={{ display:'block', marginTop:2, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</span>
+              <button key={kaynak.id} type="button" onClick={() => handleEditKaynakSec(kaynak.id)} className="btn-hover" style={{ display:'flex', gap:9, alignItems:'center', minHeight:58, padding:'7px 9px', border:`1px solid ${active ? tema.primary : tema.border}`, borderRadius:10, background:active ? `${tema.primary}12` : tema.cardSoft, color:tema.text, cursor:'pointer', textAlign:'left', overflow:'hidden' }}>
+                <span style={{ width:30, height:40, borderRadius:6, border:`1px solid ${tema.border}`, flex:'0 0 auto', overflow:'hidden', background:tema.card }}>
+                  <img src={kaynak.kapak_url} alt="" loading="lazy" decoding="async" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                </span>
+                <span style={{ minWidth:0, flex:1 }}>
+                  <span style={{ display:'block', fontSize:11, color:active ? tema.primaryLight : tema.text, fontWeight:800, lineHeight:1.35 }}>{kaynak.ad}</span>
+                  <span style={{ display:'block', marginTop:3, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</span>
                 </span>
                 {active && <Check size={13} strokeWidth={2.4} color={tema.primaryLight} />}
               </button>
@@ -1668,6 +1678,40 @@ export default function Home() {
     </div>
   )
 
+  const renderKaynakKapak = (kaynak: Kaynak, aspectRatio = '3 / 4') => (
+    <div style={{ aspectRatio, background:tema.card, borderBottom:`1px solid ${tema.border}`, overflow:'hidden' }}>
+      <img
+        src={kaynak.kapak_url}
+        alt={kaynak.ad}
+        loading="lazy"
+        decoding="async"
+        style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+      />
+    </div>
+  )
+
+  const renderOAuthIcon = (provider: OAuthProvider, color: string) => {
+    const badgeStyle: CSSProperties = {
+      width:20,
+      height:20,
+      borderRadius:6,
+      background:tema.card,
+      border:`1px solid ${tema.border}`,
+      display:'inline-flex',
+      alignItems:'center',
+      justifyContent:'center',
+      color,
+      fontSize:12,
+      fontWeight:900,
+      lineHeight:1,
+      flex:'0 0 auto'
+    }
+
+    if (provider === 'apple') return <span style={badgeStyle}><Apple size={13} strokeWidth={2.1} /></span>
+    if (provider === 'azure') return <span style={badgeStyle}><Building2 size={13} strokeWidth={2.1} /></span>
+    return <span style={badgeStyle}>{provider === 'facebook' ? 'f' : 'G'}</span>
+  }
+
   function renderOAuthSecenekleri() {
     return (
     <div style={{ marginTop:14 }}>
@@ -1677,9 +1721,9 @@ export default function Home() {
         <span style={{ height:1, background:tema.border, flex:1 }} />
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
-        {oauthProviders.map(({ provider, label }) => (
+        {oauthProviders.map(({ provider, label, color }) => (
           <button key={provider} onClick={() => handleOAuth(provider)} disabled={authLoading} className="btn-hover" style={{ minHeight:42, padding:'10px 8px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.text, cursor:authLoading ? 'not-allowed' : 'pointer', opacity:authLoading ? 0.65 : 1, fontSize:12, fontWeight:800, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7 }}>
-            <LogIn size={13} strokeWidth={2.1} /> {label}
+            {renderOAuthIcon(provider, color)} {label}
           </button>
         ))}
       </div>
@@ -1782,11 +1826,11 @@ export default function Home() {
                   <p style={{ margin:0, fontSize:11, color:tema.faint, textAlign:isMobile ? 'left' : 'right' }}>{kullaniciKaynakIds.length} kaynak seçili</p>
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))', gap:10, maxHeight:isMobile ? 420 : 360, overflowY:'auto', paddingRight:4 }}>
-                  {katalogFiltreli.slice(0, isMobile ? 18 : 36).map(kaynak => {
-                    const selected = kullaniciKaynakIds.includes(kaynak.id)
+                  {katalogFiltreli.map(kaynak => {
+                    const selected = kullaniciKaynakIdSet.has(kaynak.id)
                     return (
                       <button key={kaynak.id} onClick={() => kaynakSecimiDegistir(kaynak.id)} className="btn-hover" style={{ border:`1px solid ${selected ? tema.primary : tema.border}`, borderRadius:12, background:selected ? `${tema.primary}12` : tema.cardSoft, color:tema.text, cursor:'pointer', padding:0, overflow:'hidden', textAlign:'left', position:'relative' }}>
-                        <div style={{ aspectRatio:'3 / 4', background:`url(${kaynak.kapak_url}) center / cover`, borderBottom:`1px solid ${tema.border}` }} />
+                        {renderKaynakKapak(kaynak)}
                         <div style={{ padding:'8px 8px 9px' }}>
                           <p style={{ margin:'0 0 4px', fontSize:10, color:tema.textStrong, fontWeight:800, lineHeight:1.3 }}>{kaynak.ad}</p>
                           <p style={{ margin:0, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</p>
@@ -2491,10 +2535,10 @@ export default function Home() {
                   Henüz seçilen kaynak yok.
                 </div>
               ) : kaynakModalListesi.map(kaynak => {
-                const selected = kullaniciKaynakIds.includes(kaynak.id)
+                const selected = kullaniciKaynakIdSet.has(kaynak.id)
                 return (
                   <button key={kaynak.id} onClick={() => kaynakSecimiDegistir(kaynak.id)} className="btn-hover" style={{ border:`1px solid ${selected ? tema.primary : tema.border}`, borderRadius:12, background:selected ? `${tema.primary}12` : tema.cardSoft, color:tema.text, cursor:'pointer', padding:0, overflow:'hidden', textAlign:'left', position:'relative' }}>
-                    <div style={{ aspectRatio:'3 / 4', background:`url(${kaynak.kapak_url}) center / cover`, borderBottom:`1px solid ${tema.border}` }} />
+                    {renderKaynakKapak(kaynak)}
                     <div style={{ padding:'10px 10px 11px' }}>
                       <p style={{ margin:'0 0 5px', fontSize:11, color:tema.textStrong, fontWeight:800, lineHeight:1.3 }}>{kaynak.ad}</p>
                       <p style={{ margin:0, fontSize:10, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</p>
@@ -2659,9 +2703,7 @@ export default function Home() {
                     <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
                       {seciliGunKaynaklari.map(kaynak => (
                         <div key={kaynak.id} style={{ border:`1px solid ${tema.border}`, borderRadius:12, background:tema.cardSoft, overflow:'hidden' }}>
-                          <div style={{ aspectRatio:'3 / 4', background:kaynak.kapak_url ? `url(${kaynak.kapak_url}) center / cover` : `linear-gradient(135deg, ${getDersRengi(kaynak.ders, tema.mode)}44, ${tema.card})`, display:'flex', alignItems:'center', justifyContent:'center', color:tema.textStrong }}>
-                            {!kaynak.kapak_url && <BookOpen size={24} strokeWidth={1.9} />}
-                          </div>
+                          {renderKaynakKapak(kaynak)}
                           <p style={{ margin:0, padding:'8px 9px', fontSize:10, color:tema.text, fontWeight:700, lineHeight:1.35 }}>{kaynak.ad}</p>
                         </div>
                       ))}
