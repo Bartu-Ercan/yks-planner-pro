@@ -17,6 +17,9 @@
 - Tema tercihi `localStorage` içinde `yks-tema` anahtarıyla saklanır; tema sistemi 6 Flat UI Colors paleti üstünde toplam 72 seçenekten oluşur.
 - Font tercihi `yks-font`, cursor tercihi `yks-cursor` anahtarıyla saklanır. Eski `yks-bg-style` değeri artık kullanılmaz.
 - Fontlar `next/font` ile build sırasında self-host edilir.
+- Görev-kaynak çoklu bağı `gorev_kaynaklari` tablosuyla tutulur. Eski `gorevler.kaynak_id` alanı geriye uyumluluk için ilk kaynak kimliğini taşır.
+- Supabase OAuth provider ayarları dashboard tarafında yapılır; Google, Apple, Facebook ve Microsoft için secret değerleri repo içine yazılmaz.
+- Şifre politikası client tarafında en az 8 karakter, büyük/küçük harf ve rakam olarak kontrol edilir. Supabase Dashboard > Auth > Password Security ayarı aynı kurala çekilmelidir.
 
 ## Planner Notları
 

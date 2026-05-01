@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS gorevler CASCADE;
 DROP TABLE IF EXISTS gunluk_notlar CASCADE;
+DROP TABLE IF EXISTS gorev_kaynaklari CASCADE;
 DROP TABLE IF EXISTS kullanici_kaynaklari CASCADE;
 DROP TABLE IF EXISTS kullanici_tercihleri CASCADE;
 DROP TABLE IF EXISTS kaynak_katalogu CASCADE;
@@ -33,6 +34,17 @@ CREATE TABLE gunluk_notlar (
 CREATE INDEX idx_gunluk_notlar_user_id ON gunluk_notlar(user_id);
 CREATE INDEX idx_gunluk_notlar_tarih ON gunluk_notlar(tarih);
 
+CREATE TABLE gorev_kaynaklari (
+  gorev_id UUID NOT NULL REFERENCES gorevler(id) ON DELETE CASCADE,
+  kaynak_id VARCHAR(80) NOT NULL,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  PRIMARY KEY (gorev_id, kaynak_id)
+);
+
+CREATE INDEX idx_gorev_kaynaklari_user_id ON gorev_kaynaklari(user_id);
+CREATE INDEX idx_gorev_kaynaklari_kaynak_id ON gorev_kaynaklari(kaynak_id);
+
 CREATE TABLE kaynak_katalogu (
   id VARCHAR(80) PRIMARY KEY,
   sinav VARCHAR(10) NOT NULL,
@@ -41,6 +53,7 @@ CREATE TABLE kaynak_katalogu (
   ad TEXT NOT NULL,
   kapak_url TEXT NOT NULL,
   urun_url TEXT NOT NULL,
+  populerlik INTEGER DEFAULT 50,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -68,6 +81,7 @@ CREATE TABLE kullanici_tercihleri (
 
 ALTER TABLE gorevler ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gunluk_notlar ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gorev_kaynaklari ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kaynak_katalogu ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kullanici_kaynaklari ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kullanici_tercihleri ENABLE ROW LEVEL SECURITY;
@@ -95,6 +109,22 @@ CREATE POLICY "users_update" ON gunluk_notlar FOR UPDATE USING (auth.uid() = use
 
 DROP POLICY IF EXISTS "users_delete" ON gunluk_notlar;
 CREATE POLICY "users_delete" ON gunluk_notlar FOR DELETE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "users_select" ON gorev_kaynaklari;
+CREATE POLICY "users_select" ON gorev_kaynaklari FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "users_insert" ON gorev_kaynaklari;
+CREATE POLICY "users_insert" ON gorev_kaynaklari FOR INSERT WITH CHECK (
+  auth.uid() = user_id and
+  exists (
+    select 1 from gorevler
+    where gorevler.id = gorev_kaynaklari.gorev_id
+    and gorevler.user_id = auth.uid()
+  )
+);
+
+DROP POLICY IF EXISTS "users_delete" ON gorev_kaynaklari;
+CREATE POLICY "users_delete" ON gorev_kaynaklari FOR DELETE USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "public_select" ON kaynak_katalogu;
 CREATE POLICY "public_select" ON kaynak_katalogu FOR SELECT USING (true);

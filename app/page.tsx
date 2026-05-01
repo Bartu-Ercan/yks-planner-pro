@@ -42,6 +42,7 @@ interface Gorev {
   ders: string
   konu: string
   kaynak_id?: string | null
+  kaynak_ids?: string[]
   gun: number
   hafta: string
   tamam: boolean
@@ -49,11 +50,12 @@ interface Gorev {
   created_at: string
 }
 
-type AyarSekmesi = 'tema' | 'font' | 'cursor' | 'kaynak'
+type AyarSekmesi = 'tema' | 'font' | 'cursor' | 'kaynak' | 'hesap'
 type FontKey = 'dmMono' | 'geistMono' | 'jetBrainsMono' | 'ibmPlexMono' | 'spaceGrotesk' | 'manrope'
 type CursorKey = 'minimal' | 'system'
 type KaynakGorunumu = 'text' | 'visual'
 type KaynaklarSekmesi = 'katalog' | 'secili'
+type OAuthProvider = 'google' | 'apple' | 'facebook' | 'azure'
 
 interface GunlukNot {
   id: string
@@ -245,7 +247,7 @@ export default function Home() {
   const [ekleGun, setEkleGun] = useState<number | null>(null)
   const [formKonu, setFormKonu] = useState('')
   const [formDers, setFormDers] = useState('TYT Mat')
-  const [formKaynakId, setFormKaynakId] = useState('')
+  const [formKaynakIds, setFormKaynakIds] = useState<string[]>([])
   const [topluAcik, setTopluAcik] = useState(false)
   const [topluKonu, setTopluKonu] = useState('')
   const [topluDers, setTopluDers] = useState('TYT Mat')
@@ -275,6 +277,7 @@ export default function Home() {
   const [sonKaynakSecimi, setSonKaynakSecimi] = useState<Record<string, string>>({})
   const [editKonu, setEditKonu] = useState('')
   const [editDers, setEditDers] = useState('')
+  const [editKaynakIds, setEditKaynakIds] = useState<string[]>([])
   const [bitmeyenAcik, setBitmeyenAcik] = useState(false)
   const [tasimaHedef, setTasimaHedef] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -320,6 +323,12 @@ export default function Home() {
   const customCursorAktif = !isMobile && !cursorKapali && aktifCursor !== 'system'
   const cursorMode = kopyaDrag ? 'copy' : draggingTask ? 'drag' : dragOverDay !== null ? 'target' : cursorInteractive ? 'hover' : 'normal'
   const iconProps = { size: 14, strokeWidth: 2.1 }
+  const oauthProviders: { provider: OAuthProvider; label: string }[] = [
+    { provider: 'google', label: 'Google' },
+    { provider: 'apple', label: 'Apple' },
+    { provider: 'facebook', label: 'Facebook' },
+    { provider: 'azure', label: 'Microsoft' },
+  ]
   const iconButtonStyle: CSSProperties = {
     background: tema.card,
     border: `1px solid ${tema.border}`,
@@ -373,6 +382,23 @@ export default function Home() {
   const closeOnBackdrop = (event: React.MouseEvent<HTMLDivElement>, close: () => void) => {
     if (event.target === event.currentTarget) close()
   }
+
+  const getGorevKaynakIds = (gorev: Partial<Gorev>) => {
+    const ids = Array.isArray(gorev.kaynak_ids) ? [...gorev.kaynak_ids] : []
+    if (gorev.kaynak_id && !ids.includes(gorev.kaynak_id)) ids.push(gorev.kaynak_id)
+    return Array.from(new Set(ids.filter(id => KAYNAK_KATALOGU.some(kaynak => kaynak.id === id))))
+  }
+
+  const normalizeGorevKaynakIds = (gorev: Gorev): Gorev => ({
+    ...gorev,
+    kaynak_ids: getGorevKaynakIds(gorev),
+  })
+
+  const isPasswordStrong = (password: string) =>
+    password.length >= 8 &&
+    /[a-zçğıöşü]/.test(password) &&
+    /[A-ZÇĞİÖŞÜ]/.test(password) &&
+    /\d/.test(password)
 
   const handleRootClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!kopyaDrag) return
@@ -432,15 +458,15 @@ export default function Home() {
     setTopluAcik(false)
   }
 
-  const getVarsayilanKaynakId = (ders: string) => {
+  const getVarsayilanKaynakIds = (ders: string) => {
     const uygunKaynaklar = KAYNAK_KATALOGU.filter(kaynak => kaynak.ders === ders && kullaniciKaynakIds.includes(kaynak.id))
     const sonSecim = sonKaynakSecimi[ders]
-    return sonSecim && uygunKaynaklar.some(kaynak => kaynak.id === sonSecim) ? sonSecim : ''
+    return sonSecim && uygunKaynaklar.some(kaynak => kaynak.id === sonSecim) ? [sonSecim] : []
   }
 
   const formDersDegistir = (ders: string) => {
     setFormDers(ders)
-    setFormKaynakId(getVarsayilanKaynakId(ders))
+    setFormKaynakIds(getVarsayilanKaynakIds(ders))
   }
 
   const kaynakSinavDegistir = (sinav: SinavTuru) => {
@@ -528,7 +554,7 @@ export default function Home() {
   const setupTamamla = async () => {
     setSetupAcik(false)
     tutorialBaslat()
-    await syncUserKaynakTercihleri(false)
+    await syncUserKaynakTercihleri(true)
   }
 
   const misafirGir = async () => {
@@ -544,8 +570,8 @@ export default function Home() {
     const nextIds = selected ? kullaniciKaynakIds.filter(id => id !== kaynakId) : [...kullaniciKaynakIds, kaynakId]
     setKullaniciKaynakIds(nextIds)
     const kaynak = KAYNAK_KATALOGU.find(k => k.id === kaynakId)
-    if (!selected && kaynak?.ders === formDers && !formKaynakId) setFormKaynakId(kaynakId)
-    if (selected && formKaynakId === kaynakId) setFormKaynakId('')
+    if (!selected && kaynak?.ders === formDers && formKaynakIds.length === 0) setFormKaynakIds([kaynakId])
+    if (selected && formKaynakIds.includes(kaynakId)) setFormKaynakIds(ids => ids.filter(id => id !== kaynakId))
 
     if (!user) {
       saveGuestKaynakTercihleri(nextIds)
@@ -565,12 +591,82 @@ export default function Home() {
   }
 
   const handleFormKaynakSec = async (kaynakId: string) => {
-    setFormKaynakId(kaynakId)
-    if (!kaynakId) return
+    if (!kaynakId) {
+      setFormKaynakIds([])
+      return
+    }
+    const nextIds = formKaynakIds.includes(kaynakId)
+      ? formKaynakIds.filter(id => id !== kaynakId)
+      : [...formKaynakIds, kaynakId]
+    setFormKaynakIds(nextIds)
     const next = { ...sonKaynakSecimi, [formDers]: kaynakId }
     setSonKaynakSecimi(next)
     if (!user) saveGuestKaynakTercihleri(kullaniciKaynakIds, next)
     await syncUserKaynakTercihleri(undefined, next)
+  }
+
+  const handleEditDersDegistir = (ders: string) => {
+    setEditDers(ders)
+    setEditKaynakIds(ids => ids.filter(id => KAYNAK_KATALOGU.some(kaynak => kaynak.id === id && kaynak.ders === ders)))
+  }
+
+  const handleEditKaynakSec = (kaynakId: string) => {
+    if (!kaynakId) {
+      setEditKaynakIds([])
+      return
+    }
+    setEditKaynakIds(ids => ids.includes(kaynakId) ? ids.filter(id => id !== kaynakId) : [...ids, kaynakId])
+  }
+
+  const loadGorevKaynaklari = async (currentUser: User, gorevIds: string[]) => {
+    const map: Record<string, string[]> = {}
+    if (gorevIds.length === 0) return map
+
+    const { data, error } = await supabase
+      .from('gorev_kaynaklari')
+      .select('gorev_id, kaynak_id')
+      .eq('user_id', currentUser.id)
+      .in('gorev_id', gorevIds)
+
+    if (error) {
+      console.warn('Görev kaynakları yüklenemedi:', error.message)
+      return map
+    }
+
+    ;(data || []).forEach(row => {
+      const gorevId = row.gorev_id as string
+      const kaynakId = row.kaynak_id as string
+      map[gorevId] = [...(map[gorevId] || []), kaynakId]
+    })
+    return map
+  }
+
+  const syncGorevKaynaklari = async (gorevId: string, kaynakIds: string[], currentUser = user) => {
+    if (!currentUser) return true
+    const temizIds = Array.from(new Set(kaynakIds)).filter(Boolean)
+    const { error: deleteError } = await supabase
+      .from('gorev_kaynaklari')
+      .delete()
+      .eq('user_id', currentUser.id)
+      .eq('gorev_id', gorevId)
+
+    if (deleteError) {
+      console.warn('Görev kaynakları temizlenemedi:', deleteError.message)
+      return false
+    }
+
+    if (temizIds.length === 0) return true
+
+    const { error: insertError } = await supabase
+      .from('gorev_kaynaklari')
+      .insert(temizIds.map(kaynakId => ({ user_id: currentUser.id, gorev_id: gorevId, kaynak_id: kaynakId })))
+
+    if (insertError) {
+      console.warn('Görev kaynakları kaydedilemedi:', insertError.message)
+      return false
+    }
+
+    return true
   }
 
   const kopyaBaslat = (gorev: Gorev, e: React.MouseEvent<HTMLButtonElement>) => {
@@ -729,10 +825,80 @@ export default function Home() {
     }
   }, [kopyaDrag, updatePointerKonum])
 
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+
+      if (kopyaDrag) {
+        setKopyaDrag(null)
+        return
+      }
+      if (draggingTask) {
+        pointerDragRef.current = null
+        setDraggingTask(null)
+        setDragOverDay(null)
+        setDragSelectionLock(false)
+        return
+      }
+      if (kaynaklarAcik) {
+        setKaynaklarAcik(false)
+        return
+      }
+      if (notlarAcik) {
+        setNotlarAcik(false)
+        return
+      }
+      if (ayarlarAcik) {
+        setAyarlarAcik(false)
+        return
+      }
+      if (authModal) {
+        setAuthModal(false)
+        setAuthError('')
+        return
+      }
+      if (detayModal) {
+        setDetayModal(null)
+        return
+      }
+      if (sureModal) {
+        setSureModal(null)
+        return
+      }
+      if (bitmeyenAcik) {
+        setBitmeyenAcik(false)
+        return
+      }
+      if (topluAcik) {
+        setTopluAcik(false)
+        return
+      }
+      if (ekleGun !== null) {
+        setEkleGun(null)
+        return
+      }
+      if (onboardingAcik) {
+        if (onboardingAdim > 0) setOnboardingAdim(adim => Math.max(0, adim - 1))
+        else void onboardingKapat()
+        return
+      }
+      if (gunlukPanelIndex !== null) {
+        setGunlukPanelIndex(null)
+        return
+      }
+      if (setupAcik && setupAdim > 0) {
+        setSetupAdim(adim => Math.max(0, adim - 1))
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [kopyaDrag, draggingTask, kaynaklarAcik, notlarAcik, ayarlarAcik, authModal, detayModal, sureModal, bitmeyenAcik, topluAcik, ekleGun, onboardingAcik, onboardingAdim, gunlukPanelIndex, setupAcik, setupAdim, setDragSelectionLock])
+
   async function loadGorevler(currentUser: User | null) {
     if (!currentUser) {
       const local = JSON.parse(localStorage.getItem('yks-gorevler') || '[]')
-      setGorevler(local.filter((g: Gorev) => gorunenHaftalar.includes(g.hafta)))
+      setGorevler(local.filter((g: Gorev) => gorunenHaftalar.includes(g.hafta)).map(normalizeGorevKaynakIds))
       setLoading(false)
       return
     }
@@ -743,7 +909,14 @@ export default function Home() {
       .in('hafta', gorunenHaftalar)
       .order('created_at')
 
-    if (data) setGorevler(data as Gorev[])
+    if (data) {
+      const gorevData = data as Gorev[]
+      const kaynakMap = await loadGorevKaynaklari(currentUser, gorevData.map(g => g.id))
+      setGorevler(gorevData.map(g => normalizeGorevKaynakIds({
+        ...g,
+        kaynak_ids: kaynakMap[g.id]?.length ? kaynakMap[g.id] : getGorevKaynakIds(g)
+      })))
+    }
     setLoading(false)
   }
 
@@ -772,15 +945,23 @@ export default function Home() {
     if (local.length === 0 || guestMigrate) return
 
     setGuestMigrate(true)
-    const toMigrate = local.map((g: Gorev) => {
+    const localGorevler = (local as Gorev[]).map(normalizeGorevKaynakIds)
+    const toMigrate = localGorevler.map((g: Gorev) => {
       const payload: Partial<Gorev> = { ...g, user_id: currentUser.id }
       delete payload.id
+      delete payload.kaynak_ids
+      payload.kaynak_id = getGorevKaynakIds(g)[0] || null
       if (!payload.kaynak_id) delete payload.kaynak_id
       return payload
     })
 
     if (toMigrate.length > 0) {
-      await supabase.from('gorevler').insert(toMigrate)
+      const { data } = await supabase.from('gorevler').insert(toMigrate).select()
+      if (data) {
+        await Promise.all((data as Gorev[]).map((g, index) =>
+          syncGorevKaynaklari(g.id, getGorevKaynakIds(localGorevler[index]), currentUser)
+        ))
+      }
       localStorage.removeItem('yks-gorevler')
       loadGorevler(currentUser)
     }
@@ -833,8 +1014,8 @@ export default function Home() {
       return
     }
 
-    if (authMode === 'register' && authPassword.length < 6) {
-      setAuthError('Şifre en az 6 karakter olmalı')
+    if (authMode === 'register' && !isPasswordStrong(authPassword)) {
+      setAuthError('Şifre en az 8 karakter, büyük/küçük harf ve rakam içermeli')
       setAuthLoading(false)
       return
     }
@@ -851,6 +1032,22 @@ export default function Home() {
       setAuthPassword('')
     }
     setAuthLoading(false)
+  }
+
+  const handleOAuth = async (provider: OAuthProvider) => {
+    setAuthLoading(true)
+    setAuthError('')
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: typeof window === 'undefined' ? undefined : `${window.location.origin}/`,
+        scopes: provider === 'facebook' ? 'email' : undefined,
+      }
+    })
+    if (error) {
+      setAuthError(error.message)
+      setAuthLoading(false)
+    }
   }
 
   const handleLogout = async () => {
@@ -876,11 +1073,14 @@ export default function Home() {
     Boolean(error?.message?.toLocaleLowerCase('tr').includes('kaynak_id'))
 
   const gorevInsert = async (payload: Omit<Gorev, 'id' | 'created_at'>) => {
-    const result = await supabase.from('gorevler').insert(payload).select().single()
+    const dbPayload: Partial<Gorev> = { ...payload }
+    delete dbPayload.kaynak_ids
+    const result = await supabase.from('gorevler').insert(dbPayload).select().single()
     if (!result.error || !payload.kaynak_id || !kaynakKolonuEksikMi(result.error)) return result
 
     const payloadWithoutKaynak: Partial<Gorev> = { ...payload }
     delete payloadWithoutKaynak.kaynak_id
+    delete payloadWithoutKaynak.kaynak_ids
     const retry = await supabase.from('gorevler').insert(payloadWithoutKaynak).select().single()
     if (!retry.error) bildir('Görev eklendi. Kaynak bağlantısı için Supabase migration onayı gerekiyor.')
     return retry
@@ -943,7 +1143,11 @@ export default function Home() {
       gercek_sure: 0,
       ...(user ? { user_id: user.id } : {})
     }
-    if (formKaynakId) yeniGorev.kaynak_id = formKaynakId
+    const seciliKaynakIds = Array.from(new Set(formKaynakIds))
+    if (seciliKaynakIds.length > 0) {
+      yeniGorev.kaynak_id = seciliKaynakIds[0]
+      yeniGorev.kaynak_ids = seciliKaynakIds
+    }
 
     if (!user) {
       const yeni: Gorev = { ...yeniGorev, id: createGuestId(), created_at: new Date().toISOString() }
@@ -957,11 +1161,15 @@ export default function Home() {
         alert('Görev eklenemedi: ' + error.message)
         return
       }
-      if (data) setGorevler([...gorevler, data as Gorev])
+      if (data) {
+        const kaydedildi = await syncGorevKaynaklari((data as Gorev).id, seciliKaynakIds)
+        if (!kaydedildi && seciliKaynakIds.length > 1) bildir('Görev eklendi. Çoklu kaynak için Supabase migration onayı gerekiyor.')
+        setGorevler([...gorevler, normalizeGorevKaynakIds({ ...(data as Gorev), kaynak_ids: seciliKaynakIds })])
+      }
     }
 
     setFormKonu('')
-    setFormKaynakId('')
+    setFormKaynakIds([])
     setEkleGun(null)
   }
 
@@ -1025,7 +1233,11 @@ export default function Home() {
       gercek_sure: 0,
       ...(user ? { user_id: user.id } : {})
     }
-    if (kopyaDrag.kaynak_id) yeniGorev.kaynak_id = kopyaDrag.kaynak_id
+    const kopyaKaynakIds = getGorevKaynakIds(kopyaDrag)
+    if (kopyaKaynakIds.length > 0) {
+      yeniGorev.kaynak_id = kopyaKaynakIds[0]
+      yeniGorev.kaynak_ids = kopyaKaynakIds
+    }
 
     if (!user) {
       const yeni: Gorev = { ...yeniGorev, id: createGuestId(), created_at: new Date().toISOString() }
@@ -1039,7 +1251,10 @@ export default function Home() {
         alert('Görev çoğaltılamadı: ' + error.message)
         return
       }
-      if (data) setGorevler([...gorevler, data as Gorev])
+      if (data) {
+        await syncGorevKaynaklari((data as Gorev).id, kopyaKaynakIds)
+        setGorevler([...gorevler, normalizeGorevKaynakIds({ ...(data as Gorev), kaynak_ids: kopyaKaynakIds })])
+      }
     }
 
     setKopyaDrag(null)
@@ -1124,6 +1339,7 @@ export default function Home() {
       setGorevler(updated)
       saveGuest(updated)
     } else {
+      await supabase.from('gorev_kaynaklari').delete().eq('user_id', user.id).eq('gorev_id', id)
       await supabase.from('gorevler').delete().eq('id', id)
       setGorevler(gorevler.filter(g => g.id !== id))
     }
@@ -1133,25 +1349,31 @@ export default function Home() {
     setDetayModal(gorev)
     setEditKonu(gorev.konu)
     setEditDers(gorev.ders)
+    setEditKaynakIds(getGorevKaynakIds(gorev))
   }
 
   const detayKaydet = async () => {
     if (!detayModal || !editKonu.trim()) return
 
-    const updatedData: { konu: string; ders: string; kaynak_id?: string | null } = { konu: editKonu.trim(), ders: editDers }
-    if (editDers === detayModal.ders && detayModal.kaynak_id) updatedData.kaynak_id = detayModal.kaynak_id
-    if (editDers !== detayModal.ders && detayModal.kaynak_id) updatedData.kaynak_id = null
+    const uygunEditKaynakIds = editKaynakIds.filter(id => KAYNAK_KATALOGU.some(kaynak => kaynak.id === id && kaynak.ders === editDers))
+    const updatedData: { konu: string; ders: string; kaynak_id?: string | null; kaynak_ids?: string[] } = {
+      konu: editKonu.trim(),
+      ders: editDers,
+      kaynak_id: uygunEditKaynakIds[0] || null,
+      kaynak_ids: uygunEditKaynakIds
+    }
 
     if (!user) {
       const updated = gorevler.map(g =>
-        g.id === detayModal.id ? { ...g, ...updatedData } : g
+        g.id === detayModal.id ? normalizeGorevKaynakIds({ ...g, ...updatedData }) : g
       )
       setGorevler(updated)
       saveGuest(updated)
     } else {
-      await supabase.from('gorevler').update(updatedData).eq('id', detayModal.id)
+      await supabase.from('gorevler').update({ konu: updatedData.konu, ders: updatedData.ders, kaynak_id: updatedData.kaynak_id }).eq('id', detayModal.id)
+      await syncGorevKaynaklari(detayModal.id, uygunEditKaynakIds)
       setGorevler(gorevler.map(g =>
-        g.id === detayModal.id ? { ...g, ...updatedData } : g
+        g.id === detayModal.id ? normalizeGorevKaynakIds({ ...g, ...updatedData }) : g
       ))
     }
 
@@ -1295,11 +1517,16 @@ export default function Home() {
           )}
 
           <input value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="email" type="email" style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:14, padding:'13px 14px', outline:'none', marginBottom:10, boxSizing:'border-box' }} />
-          <input value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="şifre (min 6 karakter)" type="password" onKeyDown={e => { if(e.key==='Enter') handleAuth(); }} style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:14, padding:'13px 14px', outline:'none', boxSizing:'border-box' }} />
+          <input value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="şifre (min 8, harf + rakam)" type="password" onKeyDown={e => { if(e.key==='Enter') handleAuth(); }} style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:14, padding:'13px 14px', outline:'none', boxSizing:'border-box' }} />
+          {authMode === 'register' && (
+            <p style={{ margin:'8px 0 0', fontSize:10, color:tema.faint, lineHeight:1.45 }}>En az 8 karakter, büyük/küçük harf ve rakam içermeli.</p>
+          )}
 
           <button onClick={handleAuth} disabled={authLoading} className="btn-hover" style={{ width:'100%', marginTop:14, padding:'14px 0', background:tema.primary, border:'none', borderRadius:12, color:tema.onPrimary, fontWeight:800, fontSize:14, cursor: authLoading ? 'not-allowed' : 'pointer', opacity: authLoading ? 0.6 : 1, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8 }}>
             {authMode === 'login' ? <LogIn {...iconProps} /> : <Plus {...iconProps} />}{authLoading ? 'bekle...' : authMode === 'login' ? 'giriş yap' : 'kayıt ol'}
           </button>
+
+          {renderOAuthSecenekleri()}
 
           <button onClick={misafirGir} className="btn-hover" style={{ width:'100%', marginTop:10, padding:'13px 0', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.muted, fontWeight:700, fontSize:13, cursor:'pointer' }}>
             misafir olarak bak
@@ -1339,6 +1566,7 @@ export default function Home() {
   const seciliGunNotlari = seciliGunTarihId ? gunlukNotlar.filter(n => n.tarih === seciliGunTarihId) : []
   const kullaniciKaynaklari = KAYNAK_KATALOGU.filter(kaynak => kullaniciKaynakIds.includes(kaynak.id)).sort(kaynakSirala)
   const formKaynaklari = kullaniciKaynaklari.filter(kaynak => kaynak.ders === formDers).sort(kaynakSirala)
+  const editKaynaklari = kullaniciKaynaklari.filter(kaynak => kaynak.ders === editDers).sort(kaynakSirala)
   const filtreDersleri = [KAYNAK_DERS_TUMU, ...KAYNAK_DERSLER.filter(ders => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === aktifKaynakSinav && kaynak.ders === ders))]
   const filtreYayinevleri = ['Tümü', ...KAYNAK_YAYINEVLERI.filter(yayinevi => KAYNAK_KATALOGU.some(kaynak => kaynak.sinav === aktifKaynakSinav && kaynak.yayinevi === yayinevi))]
   const katalogFiltreli = KAYNAK_KATALOGU.filter(kaynak =>
@@ -1348,12 +1576,7 @@ export default function Home() {
   ).sort(kaynakSirala)
   const kaynakModalListesi = kaynaklarSekme === 'secili' ? kullaniciKaynaklari : katalogFiltreli
   const kaynaklariGetir = (tasks: Gorev[]) => {
-    const direktKaynakIds = tasks.map(g => g.kaynak_id).filter(Boolean) as string[]
-    const gorevDersleri = Array.from(new Set(tasks.map(g => g.ders)))
-    const dersKaynakIds = kullaniciKaynaklari
-      .filter(kaynak => gorevDersleri.includes(kaynak.ders))
-      .map(kaynak => kaynak.id)
-    const kaynakIds = Array.from(new Set([...direktKaynakIds, ...dersKaynakIds]))
+    const kaynakIds = Array.from(new Set(tasks.flatMap(getGorevKaynakIds)))
     return kaynakIds
       .map(id => KAYNAK_KATALOGU.find(kaynak => kaynak.id === id))
       .filter((kaynak): kaynak is Kaynak => Boolean(kaynak))
@@ -1391,11 +1614,11 @@ export default function Home() {
         </button>
       ) : (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
-          <button type="button" onClick={() => setFormKaynakId('')} className="btn-hover" style={{ minHeight:58, padding:'9px 8px', border:`1px solid ${formKaynakId === '' ? tema.primary : tema.border}`, borderRadius:10, background:tema.card, color:formKaynakId === '' ? tema.primaryLight : tema.faint, cursor:'pointer', fontSize:11, fontWeight:700 }}>
+          <button type="button" onClick={() => setFormKaynakIds([])} className="btn-hover" style={{ minHeight:58, padding:'9px 8px', border:`1px solid ${formKaynakIds.length === 0 ? tema.primary : tema.border}`, borderRadius:10, background:tema.card, color:formKaynakIds.length === 0 ? tema.primaryLight : tema.faint, cursor:'pointer', fontSize:11, fontWeight:700 }}>
             Kaynaksız
           </button>
-          {formKaynaklari.slice(0, 5).map(kaynak => {
-            const active = formKaynakId === kaynak.id
+          {formKaynaklari.slice(0, 7).map(kaynak => {
+            const active = formKaynakIds.includes(kaynak.id)
             return (
               <button key={kaynak.id} type="button" onClick={() => handleFormKaynakSec(kaynak.id)} className="btn-hover" style={{ display:'flex', gap:8, alignItems:'center', minHeight:58, padding:'7px 8px', border:`1px solid ${active ? tema.primary : tema.border}`, borderRadius:10, background:active ? `${tema.primary}12` : tema.card, color:tema.text, cursor:'pointer', textAlign:'left', overflow:'hidden' }}>
                 <span style={{ width:30, height:40, borderRadius:6, background:`url(${kaynak.kapak_url}) center / cover`, border:`1px solid ${tema.border}`, flex:'0 0 auto' }} />
@@ -1403,6 +1626,7 @@ export default function Home() {
                   <span style={{ display:'block', fontSize:10, color:active ? tema.primaryLight : tema.text, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.ad}</span>
                   <span style={{ display:'block', marginTop:2, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</span>
                 </span>
+                {active && <Check size={13} strokeWidth={2.4} color={tema.primaryLight} />}
               </button>
             )
           })}
@@ -1410,6 +1634,58 @@ export default function Home() {
       )}
     </div>
   )
+
+  const renderDetayKaynakSecici = () => (
+    <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:24 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+        <p style={{ margin:0, fontSize:12, color:tema.muted, fontWeight:500 }}>Kaynaklar</p>
+        <button type="button" onClick={() => setKaynaklarAcik(true)} style={{ background:'none', border:'none', color:tema.primaryLight, cursor:'pointer', fontSize:10, fontWeight:700, padding:0 }}>Kaynaklarım</button>
+      </div>
+      {editKaynaklari.length === 0 ? (
+        <button type="button" onClick={() => setKaynaklarAcik(true)} className="btn-hover" style={{ padding:'10px 11px', border:`1px dashed ${tema.border}`, borderRadius:10, background:tema.cardSoft, color:tema.faint, fontSize:11, textAlign:'left', cursor:'pointer' }}>
+          Bu ders için kaynak seçilmemiş.
+        </button>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
+          <button type="button" onClick={() => handleEditKaynakSec('')} className="btn-hover" style={{ minHeight:58, padding:'9px 8px', border:`1px solid ${editKaynakIds.length === 0 ? tema.primary : tema.border}`, borderRadius:10, background:tema.cardSoft, color:editKaynakIds.length === 0 ? tema.primaryLight : tema.faint, cursor:'pointer', fontSize:11, fontWeight:700 }}>
+            Kaynaksız
+          </button>
+          {editKaynaklari.slice(0, 7).map(kaynak => {
+            const active = editKaynakIds.includes(kaynak.id)
+            return (
+              <button key={kaynak.id} type="button" onClick={() => handleEditKaynakSec(kaynak.id)} className="btn-hover" style={{ display:'flex', gap:8, alignItems:'center', minHeight:58, padding:'7px 8px', border:`1px solid ${active ? tema.primary : tema.border}`, borderRadius:10, background:active ? `${tema.primary}12` : tema.cardSoft, color:tema.text, cursor:'pointer', textAlign:'left', overflow:'hidden' }}>
+                <span style={{ width:30, height:40, borderRadius:6, background:`url(${kaynak.kapak_url}) center / cover`, border:`1px solid ${tema.border}`, flex:'0 0 auto' }} />
+                <span style={{ minWidth:0 }}>
+                  <span style={{ display:'block', fontSize:10, color:active ? tema.primaryLight : tema.text, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.ad}</span>
+                  <span style={{ display:'block', marginTop:2, fontSize:9, color:tema.faint, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kaynak.yayinevi}</span>
+                </span>
+                {active && <Check size={13} strokeWidth={2.4} color={tema.primaryLight} />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
+  function renderOAuthSecenekleri() {
+    return (
+    <div style={{ marginTop:14 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, margin:'2px 0 12px' }}>
+        <span style={{ height:1, background:tema.border, flex:1 }} />
+        <span style={{ fontSize:10, color:tema.faint, fontWeight:700 }}>veya</span>
+        <span style={{ height:1, background:tema.border, flex:1 }} />
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
+        {oauthProviders.map(({ provider, label }) => (
+          <button key={provider} onClick={() => handleOAuth(provider)} disabled={authLoading} className="btn-hover" style={{ minHeight:42, padding:'10px 8px', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:10, color:tema.text, cursor:authLoading ? 'not-allowed' : 'pointer', opacity:authLoading ? 0.65 : 1, fontSize:12, fontWeight:800, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7 }}>
+            <LogIn size={13} strokeWidth={2.1} /> {label}
+          </button>
+        ))}
+      </div>
+    </div>
+    )
+  }
 
   if (user && setupAcik) {
     const setupBasliklari = ['Tema', 'Kaynak', 'Tercih', 'Bitir']
@@ -1735,10 +2011,12 @@ export default function Home() {
               style={{ width:'100%', background:tema.cardSoft, border:`2px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:16, padding:'14px 16px', outline:'none', boxSizing:'border-box', marginBottom:20 }} />
 
             <p style={{ margin:'0 0 8px', fontSize:12, color:tema.muted, fontWeight:500 }}>Ders</p>
-            <select value={editDers} onChange={e => setEditDers(e.target.value)}
-              style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:14, padding:'14px 16px', outline:'none', boxSizing:'border-box', marginBottom:24, appearance:'none', WebkitAppearance:'none' }}>
+            <select value={editDers} onChange={e => handleEditDersDegistir(e.target.value)}
+              style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:14, padding:'14px 16px', outline:'none', boxSizing:'border-box', marginBottom:14, appearance:'none', WebkitAppearance:'none' }}>
               {DERSLER.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
+
+            {renderDetayKaynakSecici()}
 
             <div style={{ display:'flex', gap:12 }}>
               <button onClick={() => setDetayModal(null)} className="btn-hover" style={{ ...modalActionStyle, flex:1, background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}><X {...iconProps} /> iptal</button>
@@ -1768,14 +2046,19 @@ export default function Home() {
 
             <input value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="email" type="email"
               style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:15, padding:'14px 16px', outline:'none', marginBottom:12, boxSizing:'border-box' }} />
-            <input value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="şifre (min 6 karakter)" type="password"
+            <input value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="şifre (min 8, harf + rakam)" type="password"
               onKeyDown={e => { if(e.key==='Enter') handleAuth(); }}
               style={{ width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12, color:tema.text, fontSize:15, padding:'14px 16px', outline:'none', boxSizing:'border-box' }} />
+            {authMode === 'register' && (
+              <p style={{ margin:'8px 0 0', fontSize:10, color:tema.faint, lineHeight:1.45 }}>En az 8 karakter, büyük/küçük harf ve rakam içermeli.</p>
+            )}
 
             <button onClick={handleAuth} disabled={authLoading}
               style={{ width:'100%', marginTop:16, padding:'14px 0', background:tema.primary, border:'none', borderRadius:12, color:tema.onPrimary, fontWeight:600, fontSize:14, cursor: authLoading ? 'not-allowed' : 'pointer', opacity: authLoading ? 0.6 : 1 }}>
               <span className="button-inner">{authMode === 'login' ? <LogIn {...iconProps} /> : <Plus {...iconProps} />}{authLoading ? 'bekle...' : authMode === 'login' ? 'giriş yap' : 'kayıt ol'}</span>
             </button>
+
+            {renderOAuthSecenekleri()}
 
             <div style={{ marginTop:16, textAlign:'center' }}>
               <button onClick={() => { setAuthMode(m => m === 'login' ? 'register' : 'login'); setAuthError(''); }}
@@ -1793,17 +2076,18 @@ export default function Home() {
           <div style={{ background:tema.card, border:`1px solid ${tema.border}`, borderRadius:20, padding:'32px 36px', maxWidth:480, width:'100%', maxHeight:'85vh', overflowY:'auto', boxShadow:tema.shadow }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
               <div>
-                <p style={{ margin:0, fontSize:18, color:tema.textStrong, fontWeight:600 }}>Tasarım Ayarları</p>
-                <p style={{ margin:'4px 0 0', fontSize:12, color:tema.faint }}>Uygulamanın görünümünü özelleştir</p>
+                <p style={{ margin:0, fontSize:18, color:tema.textStrong, fontWeight:600 }}>Ayarlar</p>
+                <p style={{ margin:'4px 0 0', fontSize:12, color:tema.faint }}>Tasarım, kaynak ve hesap tercihleri</p>
               </div>
               <button onClick={() => setAyarlarAcik(false)} className="btn-hover icon-only" aria-label="kapat" title="kapat" style={{ background:tema.cardSoft, border:'none', color:tema.muted, cursor:'pointer', width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}><X size={16} strokeWidth={2.2} /></button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap:6, padding:4, marginBottom:16, background:tema.cardSoft, border:`1px solid ${tema.border}`, borderRadius:12 }}>
               {[
                 ['tema', 'Tema Rengi'],
                 ['font', 'Font'],
                 ['cursor', 'Cursor'],
                 ['kaynak', 'Kaynak'],
+                ['hesap', 'Hesap'],
               ].map(([key, label]) => {
                 const active = ayarSekmesi === key
                 return (
@@ -2020,7 +2304,7 @@ export default function Home() {
                   )
                 })}
               </div>
-            ) : (
+            ) : ayarSekmesi === 'kaynak' ? (
               <>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
                 {[
@@ -2068,6 +2352,46 @@ export default function Home() {
                 <BookOpen {...iconProps} /> başlangıç rehberini tekrar aç
               </button>
               </>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                <div style={{ padding:'16px', border:`1px solid ${tema.border}`, borderRadius:14, background:tema.cardSoft }}>
+                  <p style={{ margin:'0 0 6px', fontSize:13, color:tema.textStrong, fontWeight:800 }}>Oturum</p>
+                  <p style={{ margin:0, fontSize:12, color:tema.muted }}>{user ? 'Hesapla giriş yapıldı.' : misafirModu ? 'Misafir modundasın.' : 'Giriş yapılmadı.'}</p>
+                </div>
+                {user && (
+                  <button
+                    onClick={() => { setSetupAdim(0); setSetupAcik(true); setAyarlarAcik(false) }}
+                    className="btn-hover"
+                    style={{ ...compactActionStyle, width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}
+                  >
+                    <Palette {...iconProps} /> kurulum ekranını tekrar aç
+                  </button>
+                )}
+                <button
+                  onClick={() => { tutorialBaslat(); setAyarlarAcik(false) }}
+                  className="btn-hover"
+                  style={{ ...compactActionStyle, width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}
+                >
+                  <BookOpen {...iconProps} /> tutorialı tekrar başlat
+                </button>
+                {user ? (
+                  <button
+                    onClick={() => { setAyarlarAcik(false); void handleLogout() }}
+                    className="btn-hover"
+                    style={{ ...compactActionStyle, width:'100%', background:tema.cardSoft, border:`1px solid ${tema.border}`, color:'#f87171' }}
+                  >
+                    <LogOut {...iconProps} /> çıkış yap
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setAuthMode('login'); setAuthModal(true); setAyarlarAcik(false) }}
+                    className="btn-hover"
+                    style={{ ...compactActionStyle, width:'100%', background:tema.primary, border:'none', color:tema.onPrimary }}
+                  >
+                    <LogIn {...iconProps} /> giriş yap
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -2222,6 +2546,9 @@ export default function Home() {
                   ))}
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
+                  {onboardingAdim > 0 && (
+                    <button onClick={() => setOnboardingAdim(adimIndex => Math.max(0, adimIndex - 1))} className="btn-hover" style={{ ...compactActionStyle, padding:'7px 11px', background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.muted }}>geri</button>
+                  )}
                   <button onClick={onboardingKapat} className="btn-hover" style={{ ...compactActionStyle, padding:'7px 11px', background:tema.cardSoft, border:`1px solid ${tema.border}`, color:tema.faint }}>atla</button>
                   <button onClick={() => sonAdim ? onboardingKapat() : setOnboardingAdim(adimIndex => adimIndex + 1)} className="btn-hover" style={{ ...compactActionStyle, padding:'7px 12px', background:tema.primary, border:'none', color:tema.onPrimary }}>
                     {sonAdim ? 'bitir' : 'ileri'}
@@ -2327,7 +2654,7 @@ export default function Home() {
                 <div style={{ padding:'16px', border:`1px solid ${tema.border}`, borderRadius:14, background:tema.card }}>
                   <p style={{ margin:'0 0 12px', fontSize:13, color:tema.textStrong, fontWeight:800, display:'inline-flex', alignItems:'center', gap:7 }}><BookOpen size={14} strokeWidth={2.1} /> Hazırlık</p>
                   {seciliGunKaynaklari.length === 0 ? (
-                    <p style={{ margin:0, fontSize:12, color:tema.faint }}>Görev eklenince kaynak hazırlığı burada görünür.</p>
+                    <p style={{ margin:0, fontSize:12, color:tema.faint }}>Bu günün görevlerine kaynak bağlanmamış.</p>
                   ) : kaynakGorunumu === 'visual' ? (
                     <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
                       {seciliGunKaynaklari.map(kaynak => (
