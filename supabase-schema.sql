@@ -13,6 +13,7 @@ CREATE TABLE gorevler (
   kaynak_id VARCHAR(80),
   gun INTEGER NOT NULL,
   hafta VARCHAR(20) NOT NULL,
+  sira INTEGER,
   tamam BOOLEAN DEFAULT FALSE,
   gercek_sure INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -22,6 +23,7 @@ CREATE INDEX idx_gorevler_user_id ON gorevler(user_id);
 CREATE INDEX idx_gorevler_hafta ON gorevler(hafta);
 CREATE INDEX idx_gorevler_gun ON gorevler(gun);
 CREATE INDEX idx_gorevler_kaynak_id ON gorevler(kaynak_id);
+CREATE INDEX idx_gorevler_user_hafta_gun_sira ON gorevler(user_id, hafta, gun, tamam, sira);
 
 CREATE TABLE gunluk_notlar (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

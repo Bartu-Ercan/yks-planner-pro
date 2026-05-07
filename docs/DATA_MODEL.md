@@ -13,6 +13,7 @@ YKS çalışma görevlerini tutan ana tablodur.
 | `kaynak_id` | VARCHAR(80) | Eski tekil kaynak bağı. Çoklu kaynak sisteminde ilk seçili kaynak uyumluluk için burada tutulur. |
 | `gun` | INTEGER | Haftanın günü. Pazartesi `0`, Pazar `6`. |
 | `hafta` | VARCHAR(20) | İlgili haftanın pazartesi tarih id'si. Örnek: `2026-04-27`. |
+| `sira` | INTEGER | Gün içi görev sırası. Aktif görevler bu alanla sıralanır. |
 | `tamam` | BOOLEAN | Görev tamamlandı durumu. |
 | `gercek_sure` | INTEGER | Tamamlanan görev için dakika cinsinden süre. |
 | `created_at` | TIMESTAMPTZ | Oluşturulma zamanı. |
@@ -23,6 +24,7 @@ YKS çalışma görevlerini tutan ana tablodur.
 - `idx_gorevler_hafta`
 - `idx_gorevler_gun`
 - `idx_gorevler_kaynak_id`
+- `idx_gorevler_user_hafta_gun_sira`
 
 ## RLS
 
@@ -40,6 +42,8 @@ auth.uid() = user_id
 - `hafta`, o günün ait olduğu pazartesi tarihidir.
 - Görev yerleşiminde iki alan birlikte kullanılır.
 - Sadece `gun` ile filtreleme hatalıdır; farklı haftalardaki aynı günler çakışır.
+- Gün içinde `tamam=false` görevler üstte `sira` değerine göre listelenir.
+- `tamam=true` görevler otomatik olarak aktif görevlerin altında kalır.
 
 ## Misafir Veri Modeli
 

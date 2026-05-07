@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties, type MutableRefObject } from 'react'
 import {
   Apple,
   Archive,
@@ -47,6 +47,7 @@ interface Gorev {
   kaynak_ids?: string[]
   gun: number
   hafta: string
+  sira?: number | null
   tamam: boolean
   gercek_sure: number
   created_at: string
@@ -58,6 +59,7 @@ type CursorKey = 'minimal' | 'system'
 type KaynakGorunumu = 'text' | 'visual'
 type KaynaklarSekmesi = 'katalog' | 'secili'
 type OAuthProvider = 'google' | 'apple' | 'facebook' | 'azure'
+type DragPlacement = { dayIndex: number; taskId?: string; position?: 'before' | 'after' }
 
 interface GunlukNot {
   id: string
@@ -71,6 +73,30 @@ type Kaynak = KaynakKatalogItem
 
 const KAYNAK_BY_ID = new Map(KAYNAK_KATALOGU.map(kaynak => [kaynak.id, kaynak]))
 const KAYNAK_ID_SET = new Set(KAYNAK_KATALOGU.map(kaynak => kaynak.id))
+const SIRA_ADIM = 1000
+
+const gunAnahtari = (hafta: string, gun: number) => `${hafta}-${gun}`
+
+const normalizeSira = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null
+
+const kolonEksikMi = (error: { message?: string } | null, kolon: string) =>
+  Boolean(error?.message?.toLocaleLowerCase('tr').includes(kolon))
+
+const pointerTransformValue = (x: number, y: number) => `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
+
+const siraDegeri = (gorev: Gorev, fallbackIndex = 0) =>
+  normalizeSira(gorev.sira) ?? ((fallbackIndex + 1) * SIRA_ADIM)
+
+const gorevSiraKarsilastir = (a: Gorev, b: Gorev) => {
+  if (a.tamam !== b.tamam) return a.tamam ? 1 : -1
+  const siraFarki = siraDegeri(a) - siraDegeri(b)
+  if (siraFarki !== 0) return siraFarki
+  const tarihFarki = (a.created_at || '').localeCompare(b.created_at || '')
+  return tarihFarki !== 0 ? tarihFarki : a.id.localeCompare(b.id)
+}
+
+const siraliGorevler = (tasks: Gorev[]) => [...tasks].sort(gorevSiraKarsilastir)
 
 interface FontSecenegi {
   name: string
@@ -262,7 +288,6 @@ export default function Home() {
   const [sureInput, setSureInput] = useState('')
   const [detayModal, setDetayModal] = useState<Gorev | null>(null)
   const [kopyaDrag, setKopyaDrag] = useState<Gorev | null>(null)
-  const [kopyaKonum, setKopyaKonum] = useState({ x: 0, y: 0 })
   const [gunlukPanelIndex, setGunlukPanelIndex] = useState<number | null>(null)
   const [gunlukNotlar, setGunlukNotlar] = useState<GunlukNot[]>([])
   const [notlarAcik, setNotlarAcik] = useState(false)
@@ -306,8 +331,8 @@ export default function Home() {
   const [kaynakGorunumu, setKaynakGorunumu] = useState<KaynakGorunumu>('text')
   const [draggingTask, setDraggingTask] = useState<Gorev | null>(null)
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
+  const [dragPlacement, setDragPlacement] = useState<DragPlacement | null>(null)
   const [bildirim, setBildirim] = useState<string | null>(null)
-  const [mouseKonum, setMouseKonum] = useState({ x: 0, y: 0 })
   const [cursorHazir, setCursorHazir] = useState(false)
   const [cursorInteractive, setCursorInteractive] = useState(false)
   const [cursorKapali, setCursorKapali] = useState(false)
@@ -315,13 +340,33 @@ export default function Home() {
   const dragClickEngelleRef = useRef(false)
   const previousUserSelectRef = useRef<string | null>(null)
   const previousHtmlUserSelectRef = useRef<string | null>(null)
+  const pointerKonumRef = useRef({ x: 0, y: 0 })
+  const pointerFrameRef = useRef<number | null>(null)
+  const cursorHazirRef = useRef(false)
+  const cursorInteractiveRef = useRef(false)
+  const cursorRef = useRef<HTMLDivElement | null>(null)
+  const dragGhostRef = useRef<HTMLDivElement | null>(null)
+  const copyGhostRef = useRef<HTMLDivElement | null>(null)
+  const dragOverDayRef = useRef<number | null>(null)
+  const dragPlacementKeyRef = useRef('')
 
   const seciliTema = FLAT_TEMALAR[aktifTema] || FLAT_TEMALAR[normalizeTemaKey(aktifTema)]
   const tema = seciliTema
   const font = FONTLAR[aktifFont]
   const sayfaArkaPlani = seciliTema.bg
-  const gorunenGunler = Array.from({ length: 7 }, (_, i) => getGunBilgisi(gunOffset, i))
-  const gorunenHaftalar = Array.from(new Set(gorunenGunler.map(g => g.hafta)))
+  const gorunenGunler = useMemo(() => Array.from({ length: 7 }, (_, i) => getGunBilgisi(gunOffset, i)), [gunOffset])
+  const gorunenHaftalar = useMemo(() => Array.from(new Set(gorunenGunler.map(g => g.hafta))), [gorunenGunler])
+  const gorunenGunAnahtarlari = useMemo(() => new Set(gorunenGunler.map(g => gunAnahtari(g.hafta, g.gun))), [gorunenGunler])
+  const aktifGorevler = useMemo(() => siraliGorevler(gorevler.filter(g => gorunenGunAnahtarlari.has(gunAnahtari(g.hafta, g.gun)))), [gorevler, gorunenGunAnahtarlari])
+  const gorevlerByGun = useMemo(() => {
+    const map: Record<string, Gorev[]> = {}
+    gorunenGunler.forEach(gun => { map[gunAnahtari(gun.hafta, gun.gun)] = [] })
+    aktifGorevler.forEach(gorev => {
+      const key = gunAnahtari(gorev.hafta, gorev.gun)
+      if (map[key]) map[key].push(gorev)
+    })
+    return map
+  }, [aktifGorevler, gorunenGunler])
   const seciliTemaListesi = aktifTemaPaleti
     ? Object.entries(FLAT_TEMALAR).filter(([, t]) => t.palette === aktifTemaPaleti && t.mode === temaSekmesi)
     : []
@@ -396,6 +441,7 @@ export default function Home() {
 
   const normalizeGorevKaynakIds = (gorev: Gorev): Gorev => ({
     ...gorev,
+    sira: normalizeSira(gorev.sira),
     kaynak_ids: getGorevKaynakIds(gorev),
   })
 
@@ -410,15 +456,57 @@ export default function Home() {
     const target = event.target as HTMLElement
     if (!target.closest('.day-column')) {
       setKopyaDrag(null)
-      setDragOverDay(null)
+      clearDragTarget()
     }
   }
 
   const updatePointerKonum = useCallback((x: number, y: number) => {
     if (x === 0 && y === 0) return
-    setMouseKonum({ x, y })
-    setCursorHazir(true)
+    pointerKonumRef.current = { x, y }
+    if (!cursorHazirRef.current) {
+      cursorHazirRef.current = true
+      setCursorHazir(true)
+    }
+    if (pointerFrameRef.current !== null) return
+
+    pointerFrameRef.current = window.requestAnimationFrame(() => {
+      pointerFrameRef.current = null
+      const { x: currentX, y: currentY } = pointerKonumRef.current
+      const transform = pointerTransformValue(currentX, currentY)
+      ;[cursorRef.current, dragGhostRef.current, copyGhostRef.current].forEach(element => {
+        if (element) element.style.transform = transform
+      })
+    })
   }, [])
+
+  const attachPointerElement = useCallback((targetRef: MutableRefObject<HTMLDivElement | null>, element: HTMLDivElement | null) => {
+    targetRef.current = element
+    if (!element) return
+    const { x, y } = pointerKonumRef.current
+    element.style.transform = pointerTransformValue(x, y)
+  }, [])
+
+  const setCursorInteractiveIfChanged = useCallback((next: boolean) => {
+    if (cursorInteractiveRef.current === next) return
+    cursorInteractiveRef.current = next
+    setCursorInteractive(next)
+  }, [])
+
+  const setDragTarget = useCallback((nextDay: number | null, nextPlacement: DragPlacement | null) => {
+    if (dragOverDayRef.current !== nextDay) {
+      dragOverDayRef.current = nextDay
+      setDragOverDay(nextDay)
+    }
+
+    const nextKey = nextPlacement
+      ? `${nextPlacement.dayIndex}:${nextPlacement.taskId || ''}:${nextPlacement.position || ''}`
+      : ''
+    if (dragPlacementKeyRef.current === nextKey) return
+    dragPlacementKeyRef.current = nextKey
+    setDragPlacement(nextPlacement)
+  }, [])
+
+  const clearDragTarget = useCallback(() => setDragTarget(null, null), [setDragTarget])
 
   const setDragSelectionLock = useCallback((locked: boolean) => {
     if (locked) {
@@ -467,6 +555,22 @@ export default function Home() {
     const uygunKaynaklar = KAYNAK_KATALOGU.filter(kaynak => kaynak.ders === ders && kullaniciKaynakIds.includes(kaynak.id))
     const sonSecim = sonKaynakSecimi[ders]
     return sonSecim && uygunKaynaklar.some(kaynak => kaynak.id === sonSecim) ? [sonSecim] : []
+  }
+
+  const getNextSiraForDay = (hafta: string, gun: number, tasks = gorevler) => {
+    const aktifler = siraliGorevler(tasks.filter(g => g.hafta === hafta && g.gun === gun && !g.tamam))
+    if (aktifler.length === 0) return SIRA_ADIM
+    return siraDegeri(aktifler[aktifler.length - 1], aktifler.length - 1) + SIRA_ADIM
+  }
+
+  const createBatchSira = (tasks = gorevler) => {
+    const nextByDay = new Map<string, number>()
+    return (hafta: string, gun: number) => {
+      const key = gunAnahtari(hafta, gun)
+      const next = nextByDay.get(key) ?? getNextSiraForDay(hafta, gun, tasks)
+      nextByDay.set(key, next + SIRA_ADIM)
+      return next
+    }
   }
 
   const formDersDegistir = (ders: string) => {
@@ -678,9 +782,9 @@ export default function Home() {
     e.preventDefault()
     e.stopPropagation()
     setKopyaDrag(gorev)
-    setKopyaKonum({ x: e.clientX, y: e.clientY })
+    updatePointerKonum(e.clientX, e.clientY)
     setDraggingTask(null)
-    setDragOverDay(null)
+    clearDragTarget()
   }
 
   useEffect(() => {
@@ -695,7 +799,7 @@ export default function Home() {
       setTercihlerYuklendi(true)
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [updatePointerKonum])
+  }, [])
 
   useEffect(() => {
     if (!tercihlerYuklendi) return
@@ -718,7 +822,10 @@ export default function Home() {
   }, [kaynakGorunumu, tercihlerYuklendi])
 
   useEffect(() => {
-    return () => setDragSelectionLock(false)
+    return () => {
+      setDragSelectionLock(false)
+      if (pointerFrameRef.current !== null) window.cancelAnimationFrame(pointerFrameRef.current)
+    }
   }, [setDragSelectionLock])
 
   useEffect(() => {
@@ -758,10 +865,13 @@ export default function Home() {
     const handleMouseMove = (event: MouseEvent) => {
       updatePointerKonum(event.clientX, event.clientY)
       const target = event.target as HTMLElement | null
-      setCursorInteractive(Boolean(target?.closest('button, a, input, select, textarea, [role="button"], .gorev-card')))
+      setCursorInteractiveIfChanged(Boolean(target?.closest('button, a, input, select, textarea, [role="button"], .gorev-card')))
     }
 
-    const handleMouseLeave = () => setCursorHazir(false)
+    const handleMouseLeave = () => {
+      cursorHazirRef.current = false
+      setCursorHazir(false)
+    }
 
     window.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseleave', handleMouseLeave)
@@ -773,7 +883,7 @@ export default function Home() {
       window.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseleave', handleMouseLeave)
     }
-  }, [updatePointerKonum])
+  }, [setCursorInteractiveIfChanged, updatePointerKonum])
 
   useEffect(() => {
     let frame = 0
@@ -814,7 +924,6 @@ export default function Home() {
 
     const handleMouseMove = (event: MouseEvent) => {
       updatePointerKonum(event.clientX, event.clientY)
-      setKopyaKonum({ x: event.clientX, y: event.clientY })
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -841,7 +950,7 @@ export default function Home() {
       if (draggingTask) {
         pointerDragRef.current = null
         setDraggingTask(null)
-        setDragOverDay(null)
+        clearDragTarget()
         setDragSelectionLock(false)
         return
       }
@@ -898,7 +1007,7 @@ export default function Home() {
 
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [kopyaDrag, draggingTask, kaynaklarAcik, notlarAcik, ayarlarAcik, authModal, detayModal, sureModal, bitmeyenAcik, topluAcik, ekleGun, onboardingAcik, onboardingAdim, gunlukPanelIndex, setupAcik, setupAdim, setDragSelectionLock])
+  }, [kopyaDrag, draggingTask, kaynaklarAcik, notlarAcik, ayarlarAcik, authModal, detayModal, sureModal, bitmeyenAcik, topluAcik, ekleGun, onboardingAcik, onboardingAdim, gunlukPanelIndex, setupAcik, setupAdim, clearDragTarget, setDragSelectionLock])
 
   async function loadGorevler(currentUser: User | null) {
     if (!currentUser) {
@@ -961,7 +1070,19 @@ export default function Home() {
     })
 
     if (toMigrate.length > 0) {
-      const { data } = await supabase.from('gorevler').insert(toMigrate).select()
+      let { data, error } = await supabase.from('gorevler').insert(toMigrate).select()
+      if (error && kolonEksikMi(error, 'sira')) {
+        const fallback = toMigrate.map(payload => {
+          const next = { ...payload }
+          delete next.sira
+          return next
+        })
+        ;({ data, error } = await supabase.from('gorevler').insert(fallback).select())
+      }
+      if (error) {
+        console.warn('Misafir görevleri taşınamadı:', error.message)
+        return
+      }
       if (data) {
         await Promise.all((data as Gorev[]).map((g, index) =>
           syncGorevKaynaklari(g.id, getGorevKaynakIds(localGorevler[index]), currentUser)
@@ -1074,21 +1195,49 @@ export default function Home() {
     localStorage.setItem('yks-gunluk-notlar', JSON.stringify(notlar))
   }
 
-  const kaynakKolonuEksikMi = (error: { message?: string } | null) =>
-    Boolean(error?.message?.toLocaleLowerCase('tr').includes('kaynak_id'))
-
   const gorevInsert = async (payload: Omit<Gorev, 'id' | 'created_at'>) => {
     const dbPayload: Partial<Gorev> = { ...payload }
     delete dbPayload.kaynak_ids
-    const result = await supabase.from('gorevler').insert(dbPayload).select().single()
-    if (!result.error || !payload.kaynak_id || !kaynakKolonuEksikMi(result.error)) return result
 
-    const payloadWithoutKaynak: Partial<Gorev> = { ...payload }
-    delete payloadWithoutKaynak.kaynak_id
-    delete payloadWithoutKaynak.kaynak_ids
-    const retry = await supabase.from('gorevler').insert(payloadWithoutKaynak).select().single()
-    if (!retry.error) bildir('Görev eklendi. Kaynak bağlantısı için Supabase migration onayı gerekiyor.')
-    return retry
+    for (let deneme = 0; deneme < 3; deneme += 1) {
+      const result = await supabase.from('gorevler').insert(dbPayload).select().single()
+      if (!result.error) return result
+
+      let retry = false
+      if (kolonEksikMi(result.error, 'kaynak_id') && 'kaynak_id' in dbPayload) {
+        delete dbPayload.kaynak_id
+        retry = true
+      }
+      if (kolonEksikMi(result.error, 'sira') && 'sira' in dbPayload) {
+        delete dbPayload.sira
+        retry = true
+      }
+      if (!retry) return result
+    }
+
+    return supabase.from('gorevler').insert(dbPayload).select().single()
+  }
+
+  const gorevUpdate = async (id: string, patch: Partial<Gorev>) => {
+    const dbPatch = { ...patch }
+
+    for (let deneme = 0; deneme < 3; deneme += 1) {
+      const result = await supabase.from('gorevler').update(dbPatch).eq('id', id)
+      if (!result.error) return result
+
+      let retry = false
+      if (kolonEksikMi(result.error, 'kaynak_id') && 'kaynak_id' in dbPatch) {
+        delete dbPatch.kaynak_id
+        retry = true
+      }
+      if (kolonEksikMi(result.error, 'sira') && 'sira' in dbPatch) {
+        delete dbPatch.sira
+        retry = true
+      }
+      if (!retry) return result
+    }
+
+    return supabase.from('gorevler').update(dbPatch).eq('id', id)
   }
 
   const gunlukNotEkle = async (tarih: string) => {
@@ -1144,6 +1293,7 @@ export default function Home() {
       konu: formKonu.trim(),
       gun: hedefGun.gun,
       hafta: hedefGun.hafta,
+      sira: getNextSiraForDay(hedefGun.hafta, hedefGun.gun),
       tamam: false,
       gercek_sure: 0,
       ...(user ? { user_id: user.id } : {})
@@ -1186,6 +1336,8 @@ export default function Home() {
       seciliGunler.map(column => getGunBilgisi(gunOffset + column + hafta * 7, 0))
     ).flat()
 
+    const nextSira = createBatchSira()
+
     if (!user) {
       const yeniGorevler: Gorev[] = hedefGunler.map((hedef, i) => ({
         id: `${Date.now()}-${i}-${hedef.hafta}-${hedef.gun}`,
@@ -1193,6 +1345,7 @@ export default function Home() {
         konu: topluKonu.trim(),
         gun: hedef.gun,
         hafta: hedef.hafta,
+        sira: nextSira(hedef.hafta, hedef.gun),
         tamam: false,
         gercek_sure: 0,
         created_at: new Date().toISOString()
@@ -1207,6 +1360,7 @@ export default function Home() {
         konu: topluKonu.trim(),
         gun: hedef.gun,
         hafta: hedef.hafta,
+        sira: nextSira(hedef.hafta, hedef.gun),
         tamam: false,
         gercek_sure: 0,
         user_id: user.id
@@ -1234,6 +1388,7 @@ export default function Home() {
       konu: kopyaDrag.konu,
       gun: hedefGun.gun,
       hafta: hedefGun.hafta,
+      sira: getNextSiraForDay(hedefGun.hafta, hedefGun.gun),
       tamam: false,
       gercek_sure: 0,
       ...(user ? { user_id: user.id } : {})
@@ -1279,17 +1434,24 @@ export default function Home() {
       return
     }
 
+    const tasinacakIdSet = new Set(tasinacaklar.map(g => g.id))
+    const nextSira = createBatchSira(gorevler.filter(g => !tasinacakIdSet.has(g.id)))
+    const patchById = new Map(tasinacaklar.map(g => [
+      g.id,
+      { gun: hedefGun.gun, hafta: hedefGun.hafta, sira: nextSira(hedefGun.hafta, hedefGun.gun) }
+    ]))
+
     if (!user) {
       const updated = gorevler.map(g =>
-        tasinacaklar.some(t => t.id === g.id) ? { ...g, gun: hedefGun.gun, hafta: hedefGun.hafta } : g
+        patchById.has(g.id) ? { ...g, ...patchById.get(g.id) } : g
       )
       setGorevler(updated)
       saveGuest(updated)
     } else {
-      const { error } = await supabase
-        .from('gorevler')
-        .update({ gun: hedefGun.gun, hafta: hedefGun.hafta })
-        .in('id', tasinacaklar.map(g => g.id))
+      const results = await Promise.all([...patchById].map(([id, patch]) =>
+        gorevUpdate(id, patch)
+      ))
+      const error = results.find(result => result.error)?.error
 
       if (error) {
         console.error('Bitmeyenleri taşıma hatası:', error)
@@ -1297,7 +1459,7 @@ export default function Home() {
         return
       }
       setGorevler(gorevler.map(g =>
-        tasinacaklar.some(t => t.id === g.id) ? { ...g, gun: hedefGun.gun, hafta: hedefGun.hafta } : g
+        patchById.has(g.id) ? { ...g, ...patchById.get(g.id) } : g
       ))
     }
 
@@ -1310,13 +1472,19 @@ export default function Home() {
       setSureModal(gorev)
       setSureInput('')
     } else {
+      const yeniSira = getNextSiraForDay(gorev.hafta, gorev.gun)
+      const patch = { tamam: false, gercek_sure: 0, sira: yeniSira }
       if (!user) {
-        const updated = gorevler.map(g => g.id === gorev.id ? { ...g, tamam: false, gercek_sure: 0 } : g)
+        const updated = gorevler.map(g => g.id === gorev.id ? { ...g, ...patch } : g)
         setGorevler(updated)
         saveGuest(updated)
       } else {
-        await supabase.from('gorevler').update({ tamam: false, gercek_sure: 0 }).eq('id', gorev.id)
-        setGorevler(gorevler.map(g => g.id === gorev.id ? { ...g, tamam: false, gercek_sure: 0 } : g))
+        const { error } = await gorevUpdate(gorev.id, patch)
+        if (error) {
+          alert('Görev güncellenemedi: ' + error.message)
+          return
+        }
+        setGorevler(gorevler.map(g => g.id === gorev.id ? { ...g, ...patch } : g))
       }
     }
   }
@@ -1330,7 +1498,7 @@ export default function Home() {
       setGorevler(updated)
       saveGuest(updated)
     } else {
-      await supabase.from('gorevler').update({ tamam: true, gercek_sure: sure }).eq('id', sureModal.id)
+      await gorevUpdate(sureModal.id, { tamam: true, gercek_sure: sure })
       setGorevler(gorevler.map(g => g.id === sureModal.id ? { ...g, tamam: true, gercek_sure: sure } : g))
     }
 
@@ -1375,10 +1543,51 @@ export default function Home() {
       setGorevler(updated)
       saveGuest(updated)
     } else {
-      await supabase.from('gorevler').update({ konu: updatedData.konu, ders: updatedData.ders, kaynak_id: updatedData.kaynak_id }).eq('id', detayModal.id)
-      await syncGorevKaynaklari(detayModal.id, uygunEditKaynakIds)
+      const dbPatch: { konu: string; ders: string; kaynak_id?: string | null } = {
+        konu: updatedData.konu,
+        ders: updatedData.ders,
+        kaynak_id: updatedData.kaynak_id
+      }
+      let data: Gorev | null = null
+      let error: { message: string } | null = null
+
+      for (let deneme = 0; deneme < 2; deneme += 1) {
+        const result = await supabase
+          .from('gorevler')
+          .update(dbPatch)
+          .eq('id', detayModal.id)
+          .select()
+          .single()
+
+        if (!result.error) {
+          data = result.data as Gorev
+          error = null
+          break
+        }
+
+        error = result.error
+        if (kolonEksikMi(result.error, 'kaynak_id') && 'kaynak_id' in dbPatch) {
+          delete dbPatch.kaynak_id
+          continue
+        }
+        break
+      }
+
+      if (error) {
+        console.error('Görev düzenleme hatası:', error)
+        alert('Görev kaydedilemedi: ' + error.message)
+        return
+      }
+
+      const kaynaklarKaydedildi = await syncGorevKaynaklari(detayModal.id, uygunEditKaynakIds)
+      if (!kaynaklarKaydedildi) {
+        alert('Görev kaydedildi ama kaynak bağlantıları güncellenemedi.')
+        return
+      }
+
+      const kaydedilenGorev = normalizeGorevKaynakIds({ ...(data || detayModal), kaynak_ids: uygunEditKaynakIds })
       setGorevler(gorevler.map(g =>
-        g.id === detayModal.id ? normalizeGorevKaynakIds({ ...g, ...updatedData }) : g
+        g.id === detayModal.id ? kaydedilenGorev : g
       ))
     }
 
@@ -1389,49 +1598,102 @@ export default function Home() {
     setSeciliGunler(gs => gs.includes(i) ? gs.filter(x => x !== i) : [...gs, i])
   }
 
-  const getPointerGunIndex = (x: number, y: number) => {
+  const getPointerDropTarget = (x: number, y: number): DragPlacement | null => {
     const element = document.elementFromPoint(x, y) as HTMLElement | null
     const column = element?.closest<HTMLElement>('.day-column')
     const index = column?.dataset.gunIndex
-    return index === undefined ? null : Number(index)
+    if (!column || index === undefined) return null
+    const dayIndex = Number(index)
+    const card = element?.closest<HTMLElement>('.gorev-card[data-task-id]')
+
+    if (card && column.contains(card) && card.dataset.taskCompleted !== 'true') {
+      const rect = card.getBoundingClientRect()
+      return {
+        dayIndex,
+        taskId: card.dataset.taskId,
+        position: y < rect.top + rect.height / 2 ? 'before' : 'after'
+      }
+    }
+
+    return { dayIndex }
   }
 
-  const moveTaskToDay = async (task: Gorev, targetGun: number) => {
-    const hedefGun = gorunenGunler[targetGun]
+  const moveTaskToDrop = async (task: Gorev, drop: DragPlacement) => {
+    const hedefGun = gorunenGunler[drop.dayIndex]
     if (!hedefGun) return
-    
-    if (task.gun === hedefGun.gun && task.hafta === hedefGun.hafta) {
+
+    if (drop.taskId === task.id) {
       setDraggingTask(null)
-      setDragOverDay(null)
+      clearDragTarget()
       return
     }
 
-    const updatedTask = { ...task, gun: hedefGun.gun, hafta: hedefGun.hafta }
+    const sourceKey = gunAnahtari(task.hafta, task.gun)
+    const targetKey = gunAnahtari(hedefGun.hafta, hedefGun.gun)
+    const hedefAktifler = siraliGorevler(gorevler.filter(g =>
+      g.hafta === hedefGun.hafta &&
+      g.gun === hedefGun.gun &&
+      !g.tamam &&
+      g.id !== task.id
+    ))
+    const targetIndex = drop.taskId ? hedefAktifler.findIndex(g => g.id === drop.taskId) : -1
+    const insertIndex = targetIndex >= 0
+      ? targetIndex + (drop.position === 'after' ? 1 : 0)
+      : hedefAktifler.length
+    const patches = new Map<string, Partial<Gorev>>()
+    const hedefSirali = [...hedefAktifler]
+    hedefSirali.splice(insertIndex, 0, { ...task, gun: hedefGun.gun, hafta: hedefGun.hafta })
+    hedefSirali.forEach((g, index) => {
+      patches.set(g.id, {
+        ...(g.id === task.id ? { gun: hedefGun.gun, hafta: hedefGun.hafta } : {}),
+        sira: (index + 1) * SIRA_ADIM
+      })
+    })
+
+    if (sourceKey !== targetKey) {
+      siraliGorevler(gorevler.filter(g =>
+        g.hafta === task.hafta &&
+        g.gun === task.gun &&
+        !g.tamam &&
+        g.id !== task.id
+      )).forEach((g, index) => {
+        patches.set(g.id, { sira: (index + 1) * SIRA_ADIM })
+      })
+    }
+
+    const changedRows = [...patches].filter(([id, patch]) => {
+      const current = gorevler.find(g => g.id === id)
+      return Boolean(current && (
+        (patch.gun !== undefined && patch.gun !== current.gun) ||
+        (patch.hafta !== undefined && patch.hafta !== current.hafta) ||
+        (patch.sira !== undefined && patch.sira !== normalizeSira(current.sira))
+      ))
+    })
 
     if (!user) {
-      const updated = gorevler.map(g => g.id === task.id ? updatedTask : g)
+      const updated = gorevler.map(g => patches.has(g.id) ? normalizeGorevKaynakIds({ ...g, ...patches.get(g.id) }) : g)
       setGorevler(updated)
       saveGuest(updated)
     } else {
-      const { error } = await supabase
-        .from('gorevler')
-        .update({ gun: hedefGun.gun, hafta: hedefGun.hafta })
-        .eq('id', task.id)
+      const results = await Promise.all(changedRows.map(([id, patch]) =>
+        gorevUpdate(id, patch)
+      ))
+      const error = results.find(result => result.error)?.error
       
       if (error) {
         console.error('Task move error:', error)
         alert('Görev taşınamadı: ' + error.message)
         setDraggingTask(null)
-        setDragOverDay(null)
+        clearDragTarget()
         return
       }
-      setGorevler(gorevler.map(g => g.id === task.id ? updatedTask : g))
+      setGorevler(gorevler.map(g => patches.has(g.id) ? normalizeGorevKaynakIds({ ...g, ...patches.get(g.id) }) : g))
     }
 
-    bildir(`Görev ${hedefGun.label} gününe taşındı`)
+    bildir(sourceKey === targetKey ? 'Görev sırası güncellendi' : `Görev ${hedefGun.label} gününe taşındı`)
 
     setDraggingTask(null)
-    setDragOverDay(null)
+    clearDragTarget()
   }
 
   const handlePointerDragStart = (e: React.PointerEvent<HTMLDivElement>, gorev: Gorev) => {
@@ -1458,7 +1720,8 @@ export default function Home() {
 
     if (drag.active) {
       e.preventDefault()
-      setDragOverDay(getPointerGunIndex(e.clientX, e.clientY))
+      const target = getPointerDropTarget(e.clientX, e.clientY)
+      setDragTarget(target?.dayIndex ?? null, target)
     }
   }
 
@@ -1475,20 +1738,20 @@ export default function Home() {
     e.preventDefault()
     engelleSiradakiClick()
     setDragSelectionLock(false)
-    const targetGun = getPointerGunIndex(e.clientX, e.clientY)
-    if (targetGun === null) {
+    const target = getPointerDropTarget(e.clientX, e.clientY)
+    if (target === null) {
       setDraggingTask(null)
-      setDragOverDay(null)
+      clearDragTarget()
       return
     }
-    void moveTaskToDay(drag.task, targetGun)
+    void moveTaskToDrop(drag.task, target)
   }
 
   const handlePointerDragCancel = () => {
     pointerDragRef.current = null
     setDragSelectionLock(false)
     setDraggingTask(null)
-    setDragOverDay(null)
+    clearDragTarget()
   }
 
   if (loading) {
@@ -1541,7 +1804,6 @@ export default function Home() {
     )
   }
 
-  const aktifGorevler = gorevler.filter(g => gorunenGunler.some(gun => gun.hafta === g.hafta && gun.gun === g.gun))
   const toplamTamam = aktifGorevler.filter(g => g.tamam).length
   const yuzde = aktifGorevler.length ? Math.round((toplamTamam / aktifGorevler.length) * 100) : 0
   const bitmeyenSayisi = aktifGorevler.filter(g => !g.tamam).length
@@ -1556,14 +1818,14 @@ export default function Home() {
 
   const getGunToplamSure = (gunIdx: number) => {
     const hedefGun = gorunenGunler[gunIdx]
-    const gunGorevler = aktifGorevler.filter(g => g.hafta === hedefGun.hafta && g.gun === hedefGun.gun && g.tamam)
-    return gunGorevler.reduce((toplam, g) => toplam + (g.gercek_sure || 0), 0)
+    const gunGorevler = gorevlerByGun[gunAnahtari(hedefGun.hafta, hedefGun.gun)] || []
+    return gunGorevler.filter(g => g.tamam).reduce((toplam, g) => toplam + (g.gercek_sure || 0), 0)
   }
 
   const seciliGun = gunlukPanelIndex === null ? null : gorunenGunler[gunlukPanelIndex]
   const seciliGunTarihId = seciliGun ? tarihId(seciliGun.tarih) : ''
   const seciliGunGorevleri = seciliGun
-    ? aktifGorevler.filter(g => g.hafta === seciliGun.hafta && g.gun === seciliGun.gun)
+    ? (gorevlerByGun[gunAnahtari(seciliGun.hafta, seciliGun.gun)] || [])
     : []
   const seciliGunTamam = seciliGunGorevleri.filter(g => g.tamam).length
   const seciliGunYuzde = seciliGunGorevleri.length ? Math.round((seciliGunTamam / seciliGunGorevleri.length) * 100) : 0
@@ -1934,9 +2196,13 @@ export default function Home() {
         .btn-hover { transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.18s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease; }
         .btn-hover:hover { transform: translateY(-1px); box-shadow: ${tema.hoverShadow}; border-color: ${tema.hoverBorder} !important; }
         .btn-hover:active { transform: translateY(0); }
-        .gorev-card { transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease, background 0.18s ease, opacity 0.18s ease; backdrop-filter: blur(8px); }
+        .gorev-card { transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.18s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.14s ease, background 0.14s ease, opacity 0.14s ease; will-change: transform; }
         .gorev-card:hover { transform: translateY(-1px); box-shadow: ${tema.mode === 'dark' ? '0 12px 28px rgba(0,0,0,0.28)' : '0 10px 22px rgba(15,23,42,0.10)'}; border-color: ${tema.mode === 'dark' ? 'rgba(148,163,184,0.18)' : 'rgba(15,23,42,0.14)'} !important; }
         .gorev-card.dragging { opacity: 0.5; transform: rotate(2deg) scale(0.98); cursor: grabbing; }
+        .gorev-card.drop-before::before,
+        .gorev-card.drop-after::after { content:''; position:absolute; left:8px; right:8px; height:2px; border-radius:999px; background:${tema.primaryLight}; box-shadow:0 0 0 1px ${tema.primary}30; pointer-events:none; }
+        .gorev-card.drop-before::before { top:2px; }
+        .gorev-card.drop-after::after { bottom:2px; }
         .gorev-card, .gorev-card * { user-select: none; -webkit-user-select: none; }
         .task-drag-lock, .task-drag-lock * { user-select: none !important; -webkit-user-select: none !important; }
         .task-drag-lock ::selection { background: transparent; }
@@ -1944,7 +2210,7 @@ export default function Home() {
         .task-action:hover { transform: translateY(-1px); }
         .task-action-copy:hover { color: ${tema.primaryLight} !important; background: ${tema.primary}18 !important; box-shadow: inset 0 0 0 1px ${tema.primary}40; }
         .task-action-delete:hover { color: #f87171 !important; background: rgba(239,68,68,0.14) !important; box-shadow: inset 0 0 0 1px rgba(248,113,113,0.34); }
-        .day-column { transition: all 0.2s ease; }
+        .day-column { transition: background 0.16s ease, outline-color 0.16s ease; }
         .day-column.drag-over { background: ${tema.primary}10; border-radius: 14px; outline: 1px solid ${tema.primary}30; outline-offset: 2px; }
         .progress-bar { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
         input:focus, select:focus { border-color: ${tema.primary} !important; outline: none; }
@@ -1984,8 +2250,9 @@ export default function Home() {
 
       {customCursorAktif && cursorHazir && (
         <div
+          ref={element => attachPointerElement(cursorRef, element)}
           className={`custom-cursor cursor-${aktifCursor} ${cursorMode}`}
-          style={{ left: mouseKonum.x, top: mouseKonum.y, opacity: kopyaDrag || draggingTask ? 0.78 : 1 }}
+          style={{ transform: pointerTransformValue(0, 0), opacity: kopyaDrag || draggingTask ? 0.78 : 1 }}
           aria-hidden="true"
         >
           <MousePointer2 size={15} strokeWidth={2.2} />
@@ -1993,7 +2260,7 @@ export default function Home() {
       )}
 
       {cursorHazir && draggingTask && !kopyaDrag && (
-        <div style={{ position:'fixed', left:mouseKonum.x, top:mouseKonum.y, transform:'translate(-50%, -50%)', zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:tema.shadow, pointerEvents:'none', opacity:0.92 }}>
+        <div ref={element => attachPointerElement(dragGhostRef, element)} style={{ position:'fixed', left:0, top:0, transform:pointerTransformValue(0, 0), zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:tema.shadow, pointerEvents:'none', opacity:0.92 }}>
           <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:getDersRengi(draggingTask.ders, tema.mode), borderRadius:'3px 0 0 3px' }} />
           <div style={{ paddingLeft:10 }}>
             <p style={{ margin:'0 0 2px', fontSize:10, color:getDersRengi(draggingTask.ders, tema.mode), fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{draggingTask.ders}</p>
@@ -2023,7 +2290,7 @@ export default function Home() {
               const updated = gorevler.map(g => g.id === sureModal.id ? { ...g, tamam:true, gercek_sure:0 } : g)
               setGorevler(updated)
               if (user) {
-                supabase.from('gorevler').update({ tamam:true, gercek_sure:0 }).eq('id', sureModal.id)
+                void gorevUpdate(sureModal.id, { tamam:true, gercek_sure:0 })
               } else {
                 saveGuest(updated)
               }
@@ -2891,7 +3158,7 @@ export default function Home() {
       {/* 7 kolon grid */}
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(7, minmax(110px, 1fr))' : 'repeat(7, minmax(0, 1fr))', gap:8, alignItems:'start', overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? '8px' : 0 }}>
         {gorunenGunler.map((gunBilgisi,i) => {
-          const gunGorevler = aktifGorevler.filter(g => g.hafta === gunBilgisi.hafta && g.gun === gunBilgisi.gun)
+          const gunGorevler = gorevlerByGun[gunAnahtari(gunBilgisi.hafta, gunBilgisi.gun)] || []
           const tamam = gunGorevler.filter(g => g.tamam).length
           const isBugun = tarihId(gunBilgisi.tarih) === tarihId(new Date())
           const formAcik = ekleGun === i
@@ -2908,7 +3175,7 @@ export default function Home() {
                 e.stopPropagation()
                 gorevCogalt(i)
               }}
-              style={{ display:'flex', flexDirection:'column', gap:6, animationDelay:`${i * 0.05}s`, animationFillMode:'both', minWidth: isMobile ? '120px' : 'auto', padding: isDragOver || kopyaDrag ? '8px 4px' : '0', cursor: kopyaDrag ? 'copy' : 'default' }}
+              style={{ display:'flex', flexDirection:'column', gap:6, animationDelay:`${i * 0.05}s`, animationFillMode:'both', minWidth: isMobile ? '120px' : 'auto', padding:'0 4px', cursor: kopyaDrag ? 'copy' : 'default' }}
             >
               {/* Gün başlığı */}
               <button
@@ -2937,10 +3204,13 @@ export default function Home() {
                 const renk = getDersRengi(g.ders, tema.mode)
                 const gs = g.gercek_sure || 0
                 const isDragging = draggingTask?.id === g.id
+                const placementClass = dragPlacement?.taskId === g.id ? `drop-${dragPlacement.position}` : ''
                 return (
                   <div
                     key={g.id}
-                    className={`gorev-card ${isDragging ? 'dragging' : ''}`}
+                    data-task-id={g.id}
+                    data-task-completed={g.tamam ? 'true' : 'false'}
+                    className={`gorev-card ${isDragging ? 'dragging' : ''} ${placementClass}`}
                     onPointerDown={(e) => handlePointerDragStart(e, g)}
                     onClickCapture={(e) => {
                       if (!dragClickEngelleRef.current) return
@@ -3003,7 +3273,7 @@ export default function Home() {
           <div style={{ position:'fixed', top:18, left:'50%', transform:'translateX(-50%)', zIndex:3000, background:tema.primary, border:`1px solid ${tema.primaryLight}`, color:tema.onPrimary, padding:'11px 16px', borderRadius:12, fontSize:12, fontWeight:700, boxShadow:tema.shadow, pointerEvents:'none', display:'inline-flex', alignItems:'center', gap:8 }}>
             <Copy size={14} strokeWidth={2.2} /> hedef güne tıkla · boşluğa tıkla veya Esc ile iptal
           </div>
-          <div style={{ position:'fixed', left:kopyaKonum.x, top:kopyaKonum.y, transform:'translate(-50%, -50%)', zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:tema.shadow, pointerEvents:'none', opacity:0.92 }}>
+          <div ref={element => attachPointerElement(copyGhostRef, element)} style={{ position:'fixed', left:0, top:0, transform:pointerTransformValue(0, 0), zIndex:3000, width:160, padding:'10px 8px 9px', border:`1px solid ${tema.primary}`, borderRadius:10, background:tema.card, boxShadow:tema.shadow, pointerEvents:'none', opacity:0.92 }}>
             <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:getDersRengi(kopyaDrag.ders, tema.mode), borderRadius:'3px 0 0 3px' }} />
             <div style={{ paddingLeft:10 }}>
               <p style={{ margin:'0 0 2px', fontSize:10, color:getDersRengi(kopyaDrag.ders, tema.mode), fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{kopyaDrag.ders}</p>
