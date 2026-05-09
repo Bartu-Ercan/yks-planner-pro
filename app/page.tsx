@@ -83,6 +83,13 @@ const normalizeSira = (value: unknown) =>
 const kolonEksikMi = (error: { message?: string } | null, kolon: string) =>
   Boolean(error?.message?.toLocaleLowerCase('tr').includes(kolon))
 
+const gorevKaynakTablosuEksikMi = (error: { message?: string; code?: string } | null) => {
+  const message = error?.message?.toLocaleLowerCase('tr') || ''
+  return error?.code === '42P01' ||
+    error?.code === 'PGRST205' ||
+    (message.includes('gorev_kaynaklari') && (message.includes('does not exist') || message.includes('schema cache')))
+}
+
 const pointerTransformValue = (x: number, y: number) => `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
 
 const siraDegeri = (gorev: Gorev, fallbackIndex = 0) =>
@@ -738,6 +745,7 @@ export default function Home() {
       .in('gorev_id', gorevIds)
 
     if (error) {
+      if (gorevKaynakTablosuEksikMi(error)) return map
       console.warn('Görev kaynakları yüklenemedi:', error.message)
       return map
     }
@@ -760,6 +768,12 @@ export default function Home() {
       .eq('gorev_id', gorevId)
 
     if (deleteError) {
+      if (gorevKaynakTablosuEksikMi(deleteError)) {
+        if (temizIds.length > 0) {
+          console.warn('Görev kaynak ilişkisi tablosu eksik; kaynak bağlantısı atlandı.')
+        }
+        return true
+      }
       console.warn('Görev kaynakları temizlenemedi:', deleteError.message)
       return false
     }
@@ -771,6 +785,10 @@ export default function Home() {
       .insert(temizIds.map(kaynakId => ({ user_id: currentUser.id, gorev_id: gorevId, kaynak_id: kaynakId })))
 
     if (insertError) {
+      if (gorevKaynakTablosuEksikMi(insertError)) {
+        console.warn('Görev kaynak ilişkisi tablosu eksik; kaynak bağlantısı atlandı.')
+        return true
+      }
       console.warn('Görev kaynakları kaydedilemedi:', insertError.message)
       return false
     }
@@ -1512,8 +1530,15 @@ export default function Home() {
       setGorevler(updated)
       saveGuest(updated)
     } else {
-      await supabase.from('gorev_kaynaklari').delete().eq('user_id', user.id).eq('gorev_id', id)
-      await supabase.from('gorevler').delete().eq('id', id)
+      const { error: kaynakSilError } = await supabase.from('gorev_kaynaklari').delete().eq('user_id', user.id).eq('gorev_id', id)
+      if (kaynakSilError && !gorevKaynakTablosuEksikMi(kaynakSilError)) {
+        console.warn('Görev kaynakları silinemedi:', kaynakSilError.message)
+      }
+      const { error } = await supabase.from('gorevler').delete().eq('id', id)
+      if (error) {
+        alert('Görev silinemedi: ' + error.message)
+        return
+      }
       setGorevler(gorevler.filter(g => g.id !== id))
     }
   }
